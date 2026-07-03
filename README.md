@@ -1,0 +1,2 @@
+# aicanvas-plugin
+opencode’plugin
