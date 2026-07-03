@@ -321,6 +321,55 @@ function findWindowsPidsOnPort(port) {
   return [...pids]
 }
 
+function findUnixPidsOnPort(port) {
+  if (process.platform === "win32") return []
+  const pids = new Set()
+
+  const lsof = spawnSync("lsof", [`-tiTCP:${port}`, "-sTCP:LISTEN"], {
+    encoding: "utf8",
+    windowsHide: true,
+  })
+  if (typeof lsof.stdout === "string") {
+    for (const line of lsof.stdout.split(/\r?\n/)) {
+      const pid = line.trim()
+      if (/^\d+$/.test(pid)) pids.add(pid)
+    }
+  }
+
+  if (pids.size === 0) {
+    const ss = spawnSync("ss", ["-ltnp"], {
+      encoding: "utf8",
+      windowsHide: true,
+    })
+    if (typeof ss.stdout === "string") {
+      const portPattern = new RegExp(`(?:^|[:.])${port}\\s+`)
+      for (const line of ss.stdout.split(/\r?\n/)) {
+        if (!portPattern.test(line)) continue
+        for (const match of line.matchAll(/pid=(\d+)/g)) {
+          pids.add(match[1])
+        }
+      }
+    }
+  }
+
+  if (pids.size === 0) {
+    const fuser = spawnSync("fuser", ["-n", "tcp", String(port)], {
+      encoding: "utf8",
+      windowsHide: true,
+    })
+    const output = `${fuser.stdout || ""}\n${fuser.stderr || ""}`
+    for (const match of output.matchAll(/\b(\d+)\b/g)) {
+      pids.add(match[1])
+    }
+  }
+
+  return [...pids]
+}
+
+function findPidsOnPort(port) {
+  return process.platform === "win32" ? findWindowsPidsOnPort(port) : findUnixPidsOnPort(port)
+}
+
 async function stopWindowsPid(pid, port, host) {
   if (!pid) return false
   const result = spawnSync("taskkill.exe", ["/PID", String(pid), "/T", "/F"], {
@@ -336,6 +385,40 @@ async function stopWindowsPid(pid, port, host) {
   return false
 }
 
+async function stopUnixPid(pid, port, host) {
+  const numericPid = Number.parseInt(String(pid), 10)
+  if (!Number.isInteger(numericPid) || numericPid <= 0 || numericPid === process.pid) return false
+  try {
+    process.kill(numericPid, "SIGTERM")
+  } catch {
+    return false
+  }
+
+  let deadline = Date.now() + 5000
+  while (Date.now() < deadline) {
+    if (!(await isPortOpen(port, host))) return true
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+
+  try {
+    process.kill(numericPid, "SIGKILL")
+  } catch {
+  }
+
+  deadline = Date.now() + 5000
+  while (Date.now() < deadline) {
+    if (!(await isPortOpen(port, host))) return true
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  return false
+}
+
+async function stopPid(pid, port, host) {
+  return process.platform === "win32"
+    ? stopWindowsPid(pid, port, host)
+    : stopUnixPid(pid, port, host)
+}
+
 async function stopCanvas(options = {}) {
   const host = normalizeHost(options.host)
   const port = normalizePort(options.port)
@@ -349,14 +432,14 @@ async function stopCanvas(options = {}) {
     throw new Error(`Port ${port} is in use, but it is not an AI-CanvasPro service. Refusing to stop it.`)
   }
 
-  const pids = findWindowsPidsOnPort(port)
+  const pids = findPidsOnPort(port)
   if (pids.length === 0) {
-    throw new Error(`AI-CanvasPro is running at ${url}, but the plugin could not find its process id on this platform.`)
+    throw new Error(`AI-CanvasPro is running at ${url}, but the plugin could not find its process id. Install lsof, ss, or fuser, then try again.`)
   }
 
   const stoppedPids = []
   for (const pid of pids) {
-    if (await stopWindowsPid(pid, port, host)) {
+    if (await stopPid(pid, port, host)) {
       stoppedPids.push(pid)
     }
   }
