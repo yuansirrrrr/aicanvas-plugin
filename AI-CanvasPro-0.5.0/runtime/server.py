@@ -224,7 +224,7 @@ def _normalize_origin(origin):
     return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
 
 PORT      = _get_int_env("AICANVAS_PORT", 8777, 1)
-BIND_HOST = (os.environ.get("AIC_BIND_HOST", "127.0.0.1") or "").strip() or "127.0.0.1"
+BIND_HOST = (os.environ.get("AICANVAS_HOST") or os.environ.get("AIC_BIND_HOST", "127.0.0.1") or "").strip() or "127.0.0.1"
 LAN_MODE  = _get_bool_env("AIC_LAN_MODE") or _get_bool_env("AIC_ENABLE_LAN")
 ALLOWED_ORIGINS = tuple(
     origin for origin in (_normalize_origin(item) for item in _split_env_list("AIC_ALLOWED_ORIGINS")) if origin
@@ -4161,6 +4161,9 @@ def _parse_server_args(argv):
             port = PORT
     if len(positional) > 1:
         bind_host = positional[1].strip() or bind_host
+
+    if _is_wildcard_bind_host(bind_host) and _is_wildcard_bind_host(os.environ.get("AICANVAS_HOST")):
+        lan_mode = True
 
     return port, bind_host, lan_mode
 
