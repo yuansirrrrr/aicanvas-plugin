@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "character-consistency",
+  "title": "Character consistency",
+  "riskLevel": "confirm",
+  "appliesWhen": ["user wants the same character across images or videos"],
+  "requiredInputs": ["character reference", "target scene prompt"],
+  "missingInputQuestions": [
+    "Which node is the character reference?",
+    "What new scene should keep the character consistent?"
+  ],
+  "recommendedModelKind": "image",
+  "defaultParams": {},
+  "commands": [
+    "node.create",
+    "graph.connect",
+    "node.setPrompt",
+    "node.setParams",
+    "generation.run"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "image-to-video",
+  "title": "Image to video",
+  "riskLevel": "confirm",
+  "appliesWhen": ["user wants to animate an image or generate video from selected images"],
+  "requiredInputs": ["source image", "prompt or motion intent"],
+  "missingInputQuestions": [
+    "Which image should be used as the video reference?",
+    "How long should the video be?",
+    "Do you prefer speed, quality, or low cost?"
+  ],
+  "recommendedModelKind": "video",
+  "defaultParams": {
+    "duration": 5,
+    "aspectRatio": "16:9"
+  },
+  "commands": [
+    "node.create",
+    "graph.connect",
+    "node.setPrompt",
+    "node.setParams",
+    "generation.run"
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "name": "ai-canvaspro",
+  "private": true,
+  "version": "0.4.12",
+  "description": "AI CanvasPro desktop editor",
+  "author": "AI CanvasPro",
+  "type": "module",
+  "main": "electron/main.js",
+  "scripts": {
+    "electron": "electron .",
+    "start": "electron .",
+    "web": "python server.py",
+    "dist:win": "electron-builder --win --x64"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3",
+    "extract-zip": "^2.0.1",
+    "yazl": "^3.3.1"
+  },
+  "devDependencies": {
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.aicanvaspro.desktop",
+    "productName": "AI CanvasPro",
+    "asar": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "**/*",
+      "!venv/**",
+      "!.electron-runtime/**",
+      "!.tmp/**",
+      "!.tmp_*",
+      "!.tmp_packaging/**",
+      "!dist/**",
+      "!dist-obfuscated/**",
+      "!release/**",
+      "!data/**",
+      "!output/**",
+      "!user/**",
+      "!user-data/**",
+      "!logs/**",
+      "!node_modules/.cache/**",
+      "!playwright-report/**",
+      "!test-results/**",
+      "!__pycache__/**",
+      "!**/__pycache__/**",
+      "!**/*.pyc",
+      "!**/*.pyo"
+    ],
+    "extraResources": [
+      {
+        "from": ".electron-runtime",
+        "to": "runtime",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "extraFiles": [
+      {
+        "from": "user/tools",
+        "to": "user/tools",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "build/app-icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "AI CanvasPro"
+    }
+  }
+}

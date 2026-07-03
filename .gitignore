@@ -1,0 +1,73 @@
+# Local Python environments
+venv/
+.venv/
+**/venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+
+# Node dependencies and build outputs
+node_modules/
+**/node_modules/
+dist/
+dist-obfuscated/
+build/
+release/
+site/
+**/dist/
+**/dist-obfuscated/
+**/build/
+**/release/
+**/site/
+
+# Runtime-local data and generated media
+user/
+user-data/
+output/
+data/
+logs/
+**/user/
+**/user-data/
+**/output/
+**/data/
+**/logs/
+
+# Packaged local runtimes and temporary packaging output
+.electron-runtime/
+.tmp_packaging/
+**/.electron-runtime/
+**/.tmp_packaging/
+electron-build/
+**/electron-build/
+.electron/
+**/.electron/
+
+# Test/cache artifacts
+playwright-report/
+test-results/
+.playwright/
+test-artifacts/
+**/playwright-report/
+**/test-results/
+**/.playwright/
+**/test-artifacts/
+.tmp/
+.tmp_*/
+*.tmp
+*.tmp.zip
+
+# Local secrets and machine-specific files
+.env
+.env.*
+**/.env
+**/.env.*
+.DS_Store
+Thumbs.db
+
+# Local package archives
+project-compressed.zip
+AlCanvas*.zip
+dreamina-login-qr.png
+AI-CanvasPro-0.5.0/AM

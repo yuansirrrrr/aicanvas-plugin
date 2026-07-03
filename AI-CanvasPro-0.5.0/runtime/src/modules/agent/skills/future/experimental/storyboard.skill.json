@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "storyboard",
+  "title": "Storyboard",
+  "riskLevel": "confirm",
+  "appliesWhen": ["user wants shot planning, storyboard script, or batch shot prompts"],
+  "requiredInputs": ["story idea or source media"],
+  "missingInputQuestions": [
+    "Should the storyboard be based on text, image, or video?",
+    "How many shots do you need?"
+  ],
+  "recommendedModelKind": "text",
+  "defaultParams": {},
+  "commands": [
+    "node.create",
+    "graph.connect",
+    "node.setPrompt",
+    "generation.run"
+  ]
+}

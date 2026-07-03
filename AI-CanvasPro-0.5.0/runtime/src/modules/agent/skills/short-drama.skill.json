@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "id": "short-drama",
+  "title": "Short drama production",
+  "riskLevel": "confirm",
+  "appliesWhen": [
+    "user wants to generate a short drama from a story description",
+    "user asks for a complete story video, plot video, multi-shot video, or short film",
+    "\u7528\u6237\u60f3\u6839\u636e\u4e00\u6bb5\u6545\u4e8b\u751f\u6210\u77ed\u5267\u3001\u5267\u60c5\u89c6\u9891\u3001\u5206\u955c\u89c6\u9891\u6216\u5b8c\u6574\u6545\u4e8b\u89c6\u9891"
+  ],
+  "requiredInputs": [
+    "story premise",
+    "characters",
+    "scenes",
+    "shot count or total duration",
+    "aspect ratio"
+  ],
+  "missingInputQuestions": [],
+  "recommendedModelKind": "video",
+  "defaultParams": {
+    "defaultAuthorizedPhrases": [
+      "\u6309\u9ed8\u8ba4",
+      "\u4f60\u6765\u5b9a",
+      "\u76f4\u63a5\u751f\u6210",
+      "\u9ed8\u8ba4",
+      "\u81ea\u52a8\u751f\u6210"
+    ],
+    "characterCount": 1,
+    "supportingCharacterCount": "0-1",
+    "sceneCount": 1,
+    "shotCount": 3,
+    "shotDuration": 5,
+    "aspectRatio": "9:16"
+  },
+  "workflow": [
+    {
+      "id": "story-breakdown",
+      "goal": "Parse the user story into characters, scenes, style, aspect ratio, shot count, duration, and ordered shots.",
+      "output": "A numbered production plan. For every shot, explicitly list the participating character ids/names, the scene id/name, story beat, previous-shot context, character intention, conflict or reveal, emotional change, key visual action, dialogue/subtext if relevant, ending state, and next-shot hook. Do not create generation nodes until the plan has enough required inputs."
+    },
+    {
+      "id": "character-references",
+      "goal": "Create one ai-image node for each main/supporting character and generate character reference images.",
+      "promptRule": "Describe only stable character identity. Do not include plot action, temporary emotions, camera movement, or scene-specific behavior.",
+      "promptTemplate": "Character reference image for {characterName}. Role in story: {role}. Age/gender/body type: {ageGenderBody}. Face identity: {faceShape}, {eyes}, {nose}, {mouth}, {skinTone}, distinctive marks: {distinctiveMarks}. Hair: {hairStyleColor}. Outfit: {signatureOutfit}, materials, colors, accessories. Temperament and social impression: {temperament}. Visual style: {visualStyle}. Full or three-quarter body, neutral pose, clean readable silhouette, consistent lighting, high detail, no plot action, no alternate outfits.",
+      "qualityChecklist": [
+        "The prompt defines face, hair, outfit, body type, and distinctive marks clearly enough to reuse in later shots.",
+        "The character reference avoids story actions and temporary scene details.",
+        "Every recurring character gets exactly one primary reference image unless the story requires a designed costume change."
+      ]
+    },
+    {
+      "id": "scene-references",
+      "goal": "Create one ai-image node for each core scene and generate scene reference images.",
+      "promptRule": "Describe only stable environment design. Do not include specific plot action, character performance, or camera movement.",
+      "promptTemplate": "Scene reference image for {sceneName}. Location type: {locationType}. Era/time period: {era}. Layout and key zones: {layout}. Architecture/interior design: {architecture}. Props and set dressing: {props}. Lighting design: {lighting}. Color palette: {palette}. Weather/time of day if relevant: {weatherTime}. Mood: {mood}. Visual style: {visualStyle}. Wide establishing view, clear spatial geography, reusable background design, no characters, no plot action.",
+      "connectionRule": "When the story contains multiple scenes, identify scene relationships during story breakdown. If two scene references are narratively, spatially, temporally, or visually related, call graph.connect between their scene reference image nodes after both scene reference nodes are created and before generating downstream shot reference images. Examples of related scenes include adjacent rooms in the same location, the same place at different times, interior/exterior of one location, a before/after transformation of one set, recurring locations with continuity props, or scenes connected by a character's movement route. Do not connect unrelated independent locations.",
+      "qualityChecklist": [
+        "The prompt defines reusable location geography, lighting, palette, props, and art direction.",
+        "The scene reference avoids character actions and one-off story moments.",
+        "Every recurring location gets its own reference image; do not merge distinct scenes into one reference.",
+        "Related scene reference nodes are connected to preserve continuity; unrelated scene reference nodes remain unconnected."
+      ]
+    },
+    {
+      "id": "shot-reference-images",
+      "goal": "Create one ai-image storyboard reference node for every shot. Before generation, use the shot plan to connect only the character reference nodes that appear in this shot and only the matching scene reference node into this shot reference image node with graph.connect.",
+      "promptRule": "Preserve character consistency and scene consistency from the connected references. The prompt must explicitly name each connected reference and explain what it represents, for example Reference image 1 / nodeId = Character A, Reference image 2 / nodeId = Character B, Reference image 3 / nodeId = Scene X. Keep each connected character's face, age, body type, outfit, hairstyle, temperament, and visual identity consistent. Keep the connected scene's location, era, lighting, props, color palette, and art direction consistent. Then describe only this shot's composition, action moment, emotion, shot size, and style.",
+      "promptTemplate": "Shot {shotNumber} storyboard reference image. Reference binding map: {referenceBindingMap}. Connected character references: {characterReferenceMap}. Connected scene reference: {sceneReferenceMap}. Treat these bindings as identity labels so the image model knows which reference is which; do not swap character identities or confuse the scene reference with a character reference. Keep all connected character identities and the connected scene design unchanged. Story beat: {storyBeat}. Shot size: {shotSize}. Camera angle and lens feel: {cameraAngleLens}. Composition: {composition}. Character blocking and spatial relationship: {blocking}. Exact action moment frozen in this frame: {actionMoment}. Facial expressions and emotion: {emotion}. Lighting and palette inherited from scene: {lightingPalette}. Visual continuity notes from previous shot: {continuityNotes}. Cinematic still frame, clear subject hierarchy, production storyboard quality, no extra characters, no changed outfits, no changed location design.",
+      "connectionRule": "For each shot reference image node, read the shot's participating characters and scene from the story-breakdown output. Call graph.connect from each participating character reference image node to the shot reference image node, and graph.connect from the matching scene reference image node to the shot reference image node before calling generation.run. Do not connect characters or scenes that are not present in this shot.",
+      "qualityChecklist": [
+        "The connected character references match the characters listed for this shot and exclude absent characters.",
+        "The connected scene reference matches the scene listed for this shot and excludes unrelated scenes.",
+        "The prompt includes a reference binding map that names every connected reference and identifies whether it is Character A, Character B, or the scene.",
+        "For multi-character shots, the prompt describes each character by name and position so the model does not confuse who is who.",
+        "The prompt explicitly preserves identity, outfit, scene geography, lighting, and palette.",
+        "The prompt describes one still action moment, not an entire video motion."
+      ]
+    },
+    {
+      "id": "shot-videos",
+      "goal": "Create one ai-video node for every shot reference image. Before generation, connect the shot reference image node into the corresponding shot video node with graph.connect.",
+      "promptRule": "Base the video on the connected shot reference image, but restate what the connected reference image represents and include the shot's story function and emotional progression from the story breakdown. Add motion, acting, camera movement, rhythm, and duration without reinventing character or scene design.",
+      "promptTemplate": "Shot {shotNumber} video from the connected storyboard reference image. Reference binding map: {referenceBindingMap}. The connected storyboard reference image is Shot {shotNumber}'s approved visual reference containing {characterNames} in {sceneName}; preserve its character identities, outfits, scene design, lighting, color palette, and composition. Duration: {durationSeconds}s. Story context from previous shot: {previousShotContext}. Dramatic purpose of this shot: {dramaticPurpose}. Character intention: {characterIntention}. Conflict, obstacle, or reveal: {conflictOrReveal}. Emotional arc during the shot: {emotionalArcStart} -> {emotionalArcEnd}. Key story information the audience must understand: {keyStoryInformation}. Action progression: {actionProgression}. Character performance, micro-expressions, and body language: {performance}. Dialogue or silent subtext if relevant: {dialogueOrSubtext}. Camera movement: {cameraMovement}. Motion speed and rhythm: {rhythm}. Focus and depth behavior: {focus}. Ending frame and story handoff to next shot: {endingFrame}; {nextShotHook}. Natural cinematic motion, clear narrative beat, stable identity, no new characters, no scene redesign, no outfit changes, no text overlays, no jump cuts inside this shot.",
+      "connectionRule": "For each shot video node, call graph.connect from its shot reference image node to the ai-video node before calling generation.run.",
+      "qualityChecklist": [
+        "The prompt includes the shot's story purpose, character intention, conflict/reveal, emotional arc, and ending handoff.",
+        "The prompt identifies the connected storyboard reference image as this exact shot's approved visual reference.",
+        "The prompt makes the audience understand one clear narrative beat instead of only showing generic motion.",
+        "The prompt only adds temporal motion, acting, camera movement, story progression, and ending frame.",
+        "The prompt does not redesign character identity, costume, location, props, or lighting.",
+        "The duration matches the shot plan or default shotDuration.",
+        "The video node is connected from exactly its own shot reference image before generation."
+      ]
+    },
+    {
+      "id": "final-compose",
+      "goal": "After all shot videos complete, compose the shot video nodes in shot-number order with media.composeVideos.",
+      "promptRule": "Ask for explicit confirmation before final video composition. Before calling media.composeVideos, sort the completed shot video node ids by numeric shotNumber ascending and pass ids in that order."
+    }
+  ],
+  "planningRules": [
+    "Do not ask follow-up questions for missing story details. If the user message is short or underspecified, infer concise defaults from defaultParams and the available user wording, then continue the workflow.",
+    "If the user explicitly authorizes defaults, use defaultParams directly.",
+    "If the user provides multiple characters, scenes, or shots, preserve them instead of compressing to defaults.",
+    "For multi-scene stories, identify related scenes during story breakdown. Related means the scenes share a location family, timeline continuity, recurring set dressing, a movement path, an interior/exterior relationship, before/after state, or explicit narrative continuity.",
+    "After creating related scene reference image nodes, connect related scene references with graph.connect before using them for shot reference images. Do not connect unrelated scene references.",
+    "For multi-character and multi-scene stories, create a shot-to-character and shot-to-scene mapping during story breakdown, then use that mapping to decide graph.connect calls for each shot.",
+    "Every shot must have this chain: character reference(s) + scene reference -> shot reference image -> shot video.",
+    "Before every generation.run call, call node.setPrompt with a fully filled prompt based on that node's workflow promptTemplate. Do not generate any image or video node with an empty, generic, reused, or story-level prompt.",
+    "Each shot reference image prompt and each shot video prompt must be written from that exact shot's shotNumber, story beat, participating characters, scene, action moment, emotion, continuity notes, and next-shot hook. Do not use the same prompt for multiple shots.",
+    "Do not generate a shot reference image until all and only the relevant character reference nodes and the matching scene reference node for that shot have been connected to it with graph.connect.",
+    "When a generation node has multiple connected references, the node prompt must include a reference binding map that labels each connected reference by node id or order and explains who or what it is.",
+    "For shot reference images with multiple characters, explicitly state which connected reference is each character and describe their positions/actions separately so the model does not confuse identities.",
+    "Shot reference image prompts must explicitly preserve the connected character identities and connected scene design; do not redesign faces, outfits, locations, lighting, or art direction unless the shot plan says they changed.",
+    "Use the promptTemplate fields in each workflow step when writing node prompts; fill unknown fields with concise inferred defaults when the user did not provide them.",
+    "Keep image prompts as rich visual descriptions and video prompts as story-driven motion instructions based on the connected image reference.",
+    "Every shot video prompt must include enough plot context to explain why the movement happens, what the character wants, what changes emotionally, and how the shot connects to the next shot.",
+    "Do not generate a shot video until its shot reference image node has been connected to it with graph.connect.",
+    "When composing the final video, pass only the generated shot video node ids to media.composeVideos, never character reference, scene reference, or shot reference image node ids.",
+    "Before composing the final video, sort generated shot video node ids by numeric shotNumber ascending; the final compose order must follow shot numbering, not selection order or canvas position."
+  ],
+  "commands": [
+    "node.create",
+    "graph.connect",
+    "node.setPrompt",
+    "node.setParams",
+    "generation.run",
+    "media.composeVideos"
+  ]
+}

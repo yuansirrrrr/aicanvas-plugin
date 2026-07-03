@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "text-to-image",
+  "title": "Text to image",
+  "riskLevel": "confirm",
+  "appliesWhen": ["user wants to create images from text"],
+  "requiredInputs": ["prompt"],
+  "missingInputQuestions": [
+    "What image prompt should be used?",
+    "Do you prefer speed, quality, or low cost?"
+  ],
+  "recommendedModelKind": "image",
+  "defaultParams": {},
+  "commands": ["node.create", "node.setPrompt", "node.setParams", "generation.run"]
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "ecommerce-product-shot",
+  "title": "Ecommerce product shot",
+  "riskLevel": "confirm",
+  "appliesWhen": ["user wants product photos, product backgrounds, or ecommerce visuals"],
+  "requiredInputs": ["product image", "visual direction"],
+  "missingInputQuestions": [
+    "Which product image should be used?",
+    "What background or selling point should be emphasized?"
+  ],
+  "recommendedModelKind": "image",
+  "defaultParams": {},
+  "commands": [
+    "node.create",
+    "graph.connect",
+    "node.setPrompt",
+    "node.setParams",
+    "generation.run"
+  ]
+}

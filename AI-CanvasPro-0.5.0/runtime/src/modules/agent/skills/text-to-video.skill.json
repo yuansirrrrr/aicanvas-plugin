@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "text-to-video",
+  "title": "Text to video",
+  "riskLevel": "confirm",
+  "appliesWhen": ["user wants to create video from text"],
+  "requiredInputs": ["prompt"],
+  "missingInputQuestions": [
+    "What should happen in the video?",
+    "What duration and aspect ratio do you want?"
+  ],
+  "recommendedModelKind": "video",
+  "defaultParams": {
+    "duration": 5
+  },
+  "commands": ["node.create", "node.setPrompt", "node.setParams", "generation.run"]
+}

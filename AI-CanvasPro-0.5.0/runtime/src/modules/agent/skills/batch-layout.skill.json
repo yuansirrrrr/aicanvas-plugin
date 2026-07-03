@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "batch-layout",
+  "title": "Batch layout",
+  "riskLevel": "safe",
+  "appliesWhen": ["user wants to align, distribute, or arrange many canvas nodes"],
+  "requiredInputs": ["target nodes", "layout intent"],
+  "missingInputQuestions": [
+    "Which nodes should be arranged?",
+    "Should they be arranged as a row, column, or grid?"
+  ],
+  "recommendedModelKind": "",
+  "defaultParams": {
+    "gap": 40
+  },
+  "commands": [
+    "node.select",
+    "layout.align",
+    "layout.distribute",
+    "layout.arrangeRow",
+    "layout.arrangeColumn",
+    "layout.arrangeGrid",
+    "viewport.focusNodes"
+  ]
+}
