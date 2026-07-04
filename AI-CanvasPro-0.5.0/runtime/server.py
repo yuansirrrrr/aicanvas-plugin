@@ -1441,10 +1441,33 @@ def _request_public_origins(handler):
         raw_host = str(handler.headers.get(header_name, "") or "").split(",", 1)[0].strip()
         if not raw_host:
             continue
-        origin = _normalize_origin(f"{forwarded_proto}://{raw_host}")
-        if origin:
-            origins.add(origin)
+        for proto in {forwarded_proto, "http", "https"}:
+            origin = _normalize_origin(f"{proto}://{raw_host}")
+            if origin:
+                origins.add(origin)
     return origins
+
+
+def _origin_matches_request_host(handler, origin):
+    try:
+        origin_host = urllib.parse.urlparse(origin).hostname
+    except Exception:
+        origin_host = ""
+    origin_host = str(origin_host or "").strip().lower()
+    if not origin_host:
+        return False
+
+    for header_name in ("X-Forwarded-Host", "Host"):
+        raw_host = str(handler.headers.get(header_name, "") or "").split(",", 1)[0].strip()
+        if not raw_host:
+            continue
+        try:
+            request_host = urllib.parse.urlparse(f"//{raw_host}").hostname
+        except Exception:
+            request_host = ""
+        if origin_host == str(request_host or "").strip().lower():
+            return True
+    return False
 
 
 def _local_allowed_origins(handler):
@@ -1464,6 +1487,7 @@ def _is_allowed_origin(handler, origin):
         normalized in _local_allowed_origins(handler)
         or normalized in ALLOWED_ORIGINS
         or normalized in _request_public_origins(handler)
+        or _origin_matches_request_host(handler, normalized)
     )
 
 
