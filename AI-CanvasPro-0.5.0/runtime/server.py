@@ -1431,6 +1431,22 @@ def _request_server_port(handler):
         return int(PORT)
 
 
+def _request_public_origins(handler):
+    origins = set()
+    forwarded_proto = str(handler.headers.get("X-Forwarded-Proto", "") or "").split(",", 1)[0].strip().lower()
+    if forwarded_proto not in ("http", "https"):
+        forwarded_proto = "https" if str(handler.headers.get("X-Forwarded-Ssl", "") or "").lower() == "on" else "http"
+
+    for header_name in ("X-Forwarded-Host", "Host"):
+        raw_host = str(handler.headers.get(header_name, "") or "").split(",", 1)[0].strip()
+        if not raw_host:
+            continue
+        origin = _normalize_origin(f"{forwarded_proto}://{raw_host}")
+        if origin:
+            origins.add(origin)
+    return origins
+
+
 def _local_allowed_origins(handler):
     port = _request_server_port(handler)
     return {
@@ -1444,7 +1460,11 @@ def _is_allowed_origin(handler, origin):
     normalized = _normalize_origin(origin)
     if not normalized:
         return False
-    return normalized in _local_allowed_origins(handler) or normalized in ALLOWED_ORIGINS
+    return (
+        normalized in _local_allowed_origins(handler)
+        or normalized in ALLOWED_ORIGINS
+        or normalized in _request_public_origins(handler)
+    )
 
 
 def _allowed_cors_origin(handler):
