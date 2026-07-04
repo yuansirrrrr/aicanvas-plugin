@@ -227,7 +227,17 @@ PORT      = _get_int_env("AICANVAS_PORT", 8777, 1)
 BIND_HOST = (os.environ.get("AICANVAS_HOST") or os.environ.get("AIC_BIND_HOST", "127.0.0.1") or "").strip() or "127.0.0.1"
 LAN_MODE  = _get_bool_env("AIC_LAN_MODE") or _get_bool_env("AIC_ENABLE_LAN")
 ALLOWED_ORIGINS = tuple(
-    origin for origin in (_normalize_origin(item) for item in _split_env_list("AIC_ALLOWED_ORIGINS")) if origin
+    origin for origin in (
+        _normalize_origin(item)
+        for item in (
+            _split_env_list("AIC_ALLOWED_ORIGINS")
+            + [
+                os.environ.get("AICANVASPRO_PUBLIC_URL"),
+                os.environ.get("AICANVAS_PUBLIC_URL"),
+                os.environ.get("AIC_PUBLIC_URL"),
+            ]
+        )
+    ) if origin
 )
 LOCAL_ACCESS_TOKEN = str(os.environ.get("AIC_LOCAL_TOKEN", "") or "").strip()
 DIRECTORY = os.path.abspath(os.path.dirname(__file__))   # v2/ 绝对路径
