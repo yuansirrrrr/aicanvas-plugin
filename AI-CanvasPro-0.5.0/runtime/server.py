@@ -1431,6 +1431,57 @@ def _get_custom_ai_config():
     return CONFIG_ROUTE_SERVICE.get_custom_ai_config()
 
 
+def _get_provider_config(provider):
+    provider_id = str(provider or "").strip().lower()
+    defaults = {
+        "agnes": "https://apihub.agnes-ai.com",
+    }
+    cfg_url = ""
+    cfg_key = ""
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8-sig") as file:
+            cfg = json.load(file)
+        providers = cfg.get("providers", {}) if isinstance(cfg, dict) else {}
+        provider_cfg = providers.get(provider_id, {}) if isinstance(providers, dict) else {}
+        if isinstance(provider_cfg, dict):
+            cfg_url = str(provider_cfg.get("apiUrl") or "").strip()
+            cfg_key = str(provider_cfg.get("apiKey") or "").strip()
+    except Exception:
+        pass
+    env_prefix = provider_id.upper().replace("-", "_")
+    env_url = os.environ.get(f"{env_prefix}_API_URL", "").strip()
+    env_key = os.environ.get(f"{env_prefix}_API_KEY", "").strip()
+    return {
+        "apiUrl": (env_url or cfg_url or defaults.get(provider_id, "")).rstrip("/"),
+        "apiKey": env_key or cfg_key,
+    }
+
+
+def _infer_proxy_provider(data, api_url=""):
+    model = str((data or {}).get("model") or "").strip().lower()
+    endpoint = str(api_url or "").strip().lower()
+    if model.startswith("agnes/") or model.startswith("agnes-") or "apihub.agnes-ai.com" in endpoint:
+        return "agnes"
+    return ""
+
+
+def _resolve_proxy_api_credentials(data, api_url, api_key):
+    resolved_url = str(api_url or "").strip().rstrip("/")
+    resolved_key = str(api_key or "").strip()
+    provider = _infer_proxy_provider(data, resolved_url)
+    if provider and (not resolved_url or not resolved_key):
+        provider_cfg = _get_provider_config(provider)
+        resolved_url = resolved_url or provider_cfg.get("apiUrl", "")
+        resolved_key = resolved_key or provider_cfg.get("apiKey", "")
+    model = str((data or {}).get("model") or "").strip().lower()
+    if provider == "agnes" and model in ("agnes-video-v2.0", "agnes/agnes-video-v2.0"):
+        base = resolved_url.rstrip("/")
+        if base and not re.search(r"/v1/videos(?:$|[/?])", base, flags=re.IGNORECASE):
+            base = re.sub(r"/v1/?$", "", base, flags=re.IGNORECASE).rstrip("/")
+            resolved_url = f"{base}/v1/videos"
+    return resolved_url, resolved_key
+
+
 def _request_server_port(handler):
     try:
         return int(handler.server.server_address[1])
@@ -3748,6 +3799,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 api_key = data.pop("apiKey", "").strip()
             except json.JSONDecodeError:
                 _json_err(self, 400, "Invalid JSON"); return
+            if not api_url or not api_key:
+                api_url, api_key = _resolve_proxy_api_credentials(data, api_url, api_key)
             if not api_url or not api_key:
                 _json_err(self, 400, "Missing apiUrl or apiKey"); return
             local_authorization_payload = dict(data) if isinstance(data, dict) else {}
