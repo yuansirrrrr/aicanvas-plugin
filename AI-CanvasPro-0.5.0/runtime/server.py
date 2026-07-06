@@ -223,6 +223,9 @@ def _normalize_origin(origin):
         return ""
     return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
 
+def _is_null_origin(origin):
+    return str(origin or "").strip().rstrip("/").lower() == "null"
+
 PORT      = _get_int_env("AICANVAS_PORT", 8777, 1)
 BIND_HOST = (os.environ.get("AICANVAS_HOST") or os.environ.get("AIC_BIND_HOST", "127.0.0.1") or "").strip() or "127.0.0.1"
 LAN_MODE  = _get_bool_env("AIC_LAN_MODE") or _get_bool_env("AIC_ENABLE_LAN")
@@ -238,6 +241,10 @@ ALLOWED_ORIGINS = tuple(
             ]
         )
     ) if origin
+)
+ALLOW_NULL_ORIGIN = any(
+    _is_null_origin(item)
+    for item in _split_env_list("AIC_ALLOWED_ORIGINS")
 )
 LOCAL_ACCESS_TOKEN = str(os.environ.get("AIC_LOCAL_TOKEN", "") or "").strip()
 DIRECTORY = os.path.abspath(os.path.dirname(__file__))   # v2/ 绝对路径
@@ -1480,6 +1487,8 @@ def _local_allowed_origins(handler):
 
 
 def _is_allowed_origin(handler, origin):
+    if _is_null_origin(origin):
+        return ALLOW_NULL_ORIGIN
     normalized = _normalize_origin(origin)
     if not normalized:
         return False
@@ -1493,6 +1502,8 @@ def _is_allowed_origin(handler, origin):
 
 def _allowed_cors_origin(handler):
     origin = handler.headers.get("Origin", "")
+    if _is_null_origin(origin) and ALLOW_NULL_ORIGIN:
+        return "null"
     normalized = _normalize_origin(origin)
     if normalized and _is_allowed_origin(handler, normalized):
         return normalized
