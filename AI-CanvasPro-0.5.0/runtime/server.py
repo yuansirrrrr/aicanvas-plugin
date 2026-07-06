@@ -1459,6 +1459,14 @@ def _get_provider_config(provider):
 
 def _infer_proxy_provider(data, api_url=""):
     model = str((data or {}).get("model") or "").strip().lower()
+    provider = str(
+        (data or {}).get("provider")
+        or (data or {}).get("providerId")
+        or ((data or {}).get("adapterTrace") or {}).get("provider")
+        or ""
+    ).strip().lower()
+    if provider:
+        return provider
     endpoint = str(api_url or "").strip().lower()
     if model.startswith("agnes/") or model.startswith("agnes-") or "apihub.agnes-ai.com" in endpoint:
         return "agnes"
@@ -1473,6 +1481,12 @@ def _resolve_proxy_api_credentials(data, api_url, api_key):
         provider_cfg = _get_provider_config(provider)
         resolved_url = resolved_url or provider_cfg.get("apiUrl", "")
         resolved_key = resolved_key or provider_cfg.get("apiKey", "")
+    if not provider and (not resolved_url or not resolved_key):
+        agnes_cfg = _get_provider_config("agnes")
+        if agnes_cfg.get("apiKey"):
+            provider = "agnes"
+            resolved_url = resolved_url or agnes_cfg.get("apiUrl", "")
+            resolved_key = resolved_key or agnes_cfg.get("apiKey", "")
     model = str((data or {}).get("model") or "").strip().lower()
     if provider == "agnes" and model in ("agnes-video-v2.0", "agnes/agnes-video-v2.0"):
         base = resolved_url.rstrip("/")
@@ -1480,6 +1494,18 @@ def _resolve_proxy_api_credentials(data, api_url, api_key):
             base = re.sub(r"/v1/?$", "", base, flags=re.IGNORECASE).rstrip("/")
             resolved_url = f"{base}/v1/videos"
     return resolved_url, resolved_key
+
+
+def _missing_proxy_credentials_message(data, api_url=""):
+    model = str((data or {}).get("model") or "").strip()
+    provider = _infer_proxy_provider(data, api_url) or "unknown"
+    agnes_cfg = _get_provider_config("agnes")
+    keys = ",".join(sorted(str(key) for key in (data or {}).keys()))
+    return (
+        "Missing apiUrl or apiKey"
+        f" (provider={provider}, model={model or 'unknown'}, "
+        f"hasAgnesKey={bool(agnes_cfg.get('apiKey'))}, keys={keys})"
+    )
 
 
 def _request_server_port(handler):
@@ -3802,7 +3828,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if not api_url or not api_key:
                 api_url, api_key = _resolve_proxy_api_credentials(data, api_url, api_key)
             if not api_url or not api_key:
-                _json_err(self, 400, "Missing apiUrl or apiKey"); return
+                _json_err(self, 400, _missing_proxy_credentials_message(data, api_url)); return
             local_authorization_payload = dict(data) if isinstance(data, dict) else {}
             for key in SUBSCRIPTION_AUTHORIZATION_ID_KEYS:
                 data.pop(key, None)
