@@ -2462,6 +2462,7 @@ REMOTE_PROXY_ROUTE_SERVICE = RemoteProxyRouteService(
     read_body=_read_body,
     subscription_gate_service_getter=lambda: SUBSCRIPTION_GATE_SERVICE,
     video_vip_workflow_ids=VIDEO_VIP_WORKFLOW_IDS,
+    provider_config_getter=lambda provider: _get_provider_config(provider),
 )
 
 

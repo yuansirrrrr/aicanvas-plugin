@@ -1,4 +1,5 @@
 import json
+import os
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -17,9 +18,11 @@ class RemoteProxyRouteService:
         read_body,
         subscription_gate_service_getter,
         video_vip_workflow_ids,
+        provider_config_getter=None,
     ):
         self._read_body = read_body
         self._get_subscription_gate_service = subscription_gate_service_getter
+        self._provider_config_getter = provider_config_getter
         self._video_vip_workflow_ids = {
             str(workflow_id or "").strip()
             for workflow_id in (video_vip_workflow_ids or set())
@@ -80,6 +83,57 @@ class RemoteProxyRouteService:
             return api_key.rstrip(",")
         return self._extract_bearer_token(handler.headers.get("Authorization", ""))
 
+    def _get_provider_config(self, provider):
+        provider_id = str(provider or "").strip().lower()
+        if not provider_id:
+            return {"apiUrl": "", "apiKey": ""}
+        if callable(self._provider_config_getter):
+            try:
+                config = self._provider_config_getter(provider_id)
+                if isinstance(config, dict):
+                    return {
+                        "apiUrl": str(config.get("apiUrl") or "").strip().rstrip("/"),
+                        "apiKey": str(config.get("apiKey") or "").strip(),
+                    }
+            except Exception:
+                pass
+        env_prefix = provider_id.upper().replace("-", "_")
+        return {
+            "apiUrl": os.environ.get(f"{env_prefix}_API_URL", "").strip().rstrip("/"),
+            "apiKey": os.environ.get(f"{env_prefix}_API_KEY", "").strip(),
+        }
+
+    @staticmethod
+    def _infer_provider_from_proxy_url(api_url):
+        endpoint = str(api_url or "").strip().lower()
+        if "apihub.agnes-ai.com" in endpoint:
+            return "agnes"
+        return ""
+
+    def _resolve_task_proxy_credentials(self, api_url, api_key):
+        resolved_url = str(api_url or "").strip().rstrip(",")
+        resolved_key = str(api_key or "").strip().rstrip(",")
+        provider = self._infer_provider_from_proxy_url(resolved_url)
+        agnes_cfg = self._get_provider_config("agnes") if not provider else {}
+        agnes_base_url = str(agnes_cfg.get("apiUrl") or "").strip().rstrip("/")
+        if not provider and agnes_base_url:
+            normalized_url = resolved_url.lower().rstrip("/")
+            normalized_base = agnes_base_url.lower().rstrip("/")
+            if normalized_url == normalized_base or normalized_url.startswith(f"{normalized_base}/"):
+                provider = "agnes"
+        if provider and not resolved_key:
+            provider_cfg = agnes_cfg if provider == "agnes" and agnes_cfg else self._get_provider_config(provider)
+            resolved_key = provider_cfg.get("apiKey", "")
+        return resolved_url, resolved_key, provider
+
+    def _missing_task_proxy_credentials_message(self, api_url):
+        provider = self._infer_provider_from_proxy_url(api_url) or "unknown"
+        agnes_cfg = self._get_provider_config("agnes")
+        return (
+            "Missing apiUrl or apiKey"
+            f" (provider={provider}, hasAgnesKey={bool(agnes_cfg.get('apiKey'))})"
+        )
+
     @staticmethod
     def _normalize_runninghub_instance_type(value):
         instance_type = str(value or "").strip().lower()
@@ -136,9 +190,9 @@ class RemoteProxyRouteService:
         query = self._parse_query(handler.path, max_num_fields=10)
         api_url = query.get("apiUrl", [""])[0].strip() if "apiUrl" in query else ""
         api_key = self._extract_proxy_api_key(handler, query)
-        api_url = api_url.rstrip(",")
+        api_url, api_key, _provider = self._resolve_task_proxy_credentials(api_url, api_key)
         if not api_url or not api_key:
-            return self._json_err(400, "Missing apiUrl or apiKey")
+            return self._json_err(400, self._missing_task_proxy_credentials_message(api_url))
 
         headers = {
             "Authorization": f"Bearer {api_key}",
