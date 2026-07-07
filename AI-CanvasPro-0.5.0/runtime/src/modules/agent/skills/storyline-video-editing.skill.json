@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "id": "storyline-video-editing",
+  "title": "Storyline video editing",
+  "riskLevel": "confirm",
+  "appliesWhen": [
+    "user wants to edit selected videos into a short film",
+    "user asks to compose multiple video clips by story order",
+    "user asks to reorder selected videos by plot, shot sequence, or narrative logic",
+    "用户想把多个视频按剧情剪成短剧、成片、故事视频或完整片段",
+    "用户要求根据故事情节重排选中的视频素材"
+  ],
+  "requiredInputs": [
+    "at least two selected video nodes",
+    "user intent or story-order instruction"
+  ],
+  "missingInputQuestions": [],
+  "recommendedModelKind": "video",
+  "defaultParams": {
+    "composeOrder": "provided",
+    "minimumVideoCount": 2
+  },
+  "workflow": [
+    {
+      "id": "read-selection",
+      "goal": "Read the currently selected video nodes before planning.",
+      "command": "canvas.getSelectedNodes",
+      "output": "Selected video node ids and safe node metadata."
+    },
+    {
+      "id": "probe-videos",
+      "goal": "Verify each selected video can be resolved by node id and read duration, size, fps, and availability.",
+      "command": "media.probeVideo",
+      "inputRule": "Pass only selected video node ids. Do not hand-write file paths.",
+      "output": "Per-video metadata and structured errors."
+    },
+    {
+      "id": "describe-clips",
+      "goal": "Convert selected video nodes into storyline clips using node names, prompts, metadata, connected reference nodes, canvas position, and probe metadata.",
+      "command": "storyline.describeClips",
+      "output": "One storyline clip for each selected video node."
+    },
+    {
+      "id": "plan-order",
+      "goal": "Create narrative groups, orderedIds, and a timeline with reasons for every clip.",
+      "command": "storyline.planVideoOrder",
+      "output": "A structured timeline. orderedIds must include every input clip exactly once."
+    },
+    {
+      "id": "compose",
+      "goal": "Compose the final video strictly in planned storyline order.",
+      "command": "media.composeVideos",
+      "inputRule": "Use ids from storyline.planVideoOrder.orderedIds and set order to provided. Include the timeline in the compose request.",
+      "output": "A final composed source-video node."
+    }
+  ],
+  "planningRules": [
+    "Always call canvas.getSelectedNodes before any storyline video edit.",
+    "Always call media.probeVideo before describing or composing clips.",
+    "Do not guess, invent, or hand-write media file paths. Media tools must resolve paths internally from node ids.",
+    "Every selected video node must become exactly one clip in storyline.describeClips; this first version does not split one video into multiple clips.",
+    "Always call storyline.describeClips before storyline.planVideoOrder.",
+    "Always call storyline.planVideoOrder before composing, unless the user explicitly asks to concatenate by selection order.",
+    "Before composing, show the user a concise storyline order summary with a reason for each clip.",
+    "For normal storyline editing, call media.composeVideos with order: provided and ids equal to storyline.planVideoOrder.orderedIds.",
+    "Do not use media.composeVideos order: selection for storyline editing unless the user explicitly says to use the selected order.",
+    "If media.probeVideo returns any failed video, stop and explain the structured error instead of composing.",
+    "If the planning confidence is low, explain the fallback basis such as shotIndex, story signals, scene, canvas position, or input order.",
+    "media.renderTimeline is not part of this first version."
+  ],
+  "commands": [
+    "canvas.getSelectedNodes",
+    "media.probeVideo",
+    "storyline.describeClips",
+    "storyline.planVideoOrder",
+    "media.composeVideos"
+  ]
+}

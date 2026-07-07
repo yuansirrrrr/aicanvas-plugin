@@ -42,7 +42,8 @@ export function registerMediaComposeCommands(registry) {
       required: ["ids"],
       properties: {
         ids: { type: "array", items: { type: "string" } },
-        order: { type: "string", enum: ["selection", "canvas"] },
+        order: { type: "string", enum: ["selection", "canvas", "provided"] },
+        timeline: { type: "array" },
       },
       selectionFallback: true,
     },
@@ -76,16 +77,19 @@ export function registerMediaComposeCommands(registry) {
           details: error.details,
         };
       }
-      const order = String(args.order || "selection").trim() === "canvas" ? "canvas" : "selection";
-      return { args: { ids, order } };
+      const orderValue = String(args.order || "selection").trim();
+      const order = orderValue === "provided" ? "provided" : orderValue === "canvas" ? "canvas" : "selection";
+      const timeline = Array.isArray(args.timeline) ? args.timeline : [];
+      return { args: { ids, order, timeline } };
     },
     async execute(args) {
-      await composeSelectedVideos(args.ids, null, { order: args.order });
+      await composeSelectedVideos(args.ids, null, { order: args.order, timeline: args.timeline });
       return {
         ids: args.ids,
         mediaKind: "video",
         order: args.order,
         status: "compose-requested",
+        timeline: args.timeline,
       };
     },
   });
