@@ -3824,6 +3824,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 data = json.loads(body)
                 api_url = data.pop("apiUrl", "").strip().rstrip("/")
                 api_key = data.pop("apiKey", "").strip()
+                auth_header_mode = str(data.pop("authHeaderMode", "") or "").strip().lower()
             except json.JSONDecodeError:
                 _json_err(self, 400, "Invalid JSON"); return
             if not api_url or not api_key:
@@ -3898,8 +3899,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     required_model_id=f"runninghub/{workflow_id}",
                 ):
                     return
+            authorization_header = api_key if auth_header_mode == "raw" else f"Bearer {api_key}"
             headers = {
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": authorization_header,
                 "Content-Type": "application/json",
                 "User-Agent": "Mozilla/5.0",
                 # 减少代理复用连接被远端提前关闭导致的偶发断链
