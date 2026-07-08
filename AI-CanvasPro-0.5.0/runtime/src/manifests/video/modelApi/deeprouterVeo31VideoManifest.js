@@ -98,6 +98,7 @@ export const deeprouterVeo31VideoExecutionManifest = Object.freeze({
   model: "veo-3.1-generate-preview",
   extensions: Object.freeze({
     bodyResolver: "deeprouterVeo31Video",
+    authHeaderMode: "raw",
     taskPolling: Object.freeze({
       mode: "task-proxy",
       method: "GET",

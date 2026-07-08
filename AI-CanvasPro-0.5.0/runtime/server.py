@@ -1435,6 +1435,7 @@ def _get_provider_config(provider):
     provider_id = str(provider or "").strip().lower()
     defaults = {
         "agnes": "https://apihub.agnes-ai.com",
+        "deeprouterai": "https://www.deeprouterai.com",
     }
     cfg_url = ""
     cfg_key = ""
@@ -1470,6 +1471,12 @@ def _infer_proxy_provider(data, api_url=""):
     endpoint = str(api_url or "").strip().lower()
     if model.startswith("agnes/") or model.startswith("agnes-") or "apihub.agnes-ai.com" in endpoint:
         return "agnes"
+    if (
+        model in ("veo-3.1-generate-preview", "deeprouterai/veo-3.1-generate-preview")
+        or model.startswith("deeprouterai/")
+        or "deeprouterai.com" in endpoint
+    ):
+        return "deeprouterai"
     return ""
 
 
@@ -3899,7 +3906,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     required_model_id=f"runninghub/{workflow_id}",
                 ):
                     return
-            authorization_header = api_key if auth_header_mode == "raw" else f"Bearer {api_key}"
+            proxy_provider = _infer_proxy_provider(data, api_url)
+            use_raw_authorization = auth_header_mode == "raw" or proxy_provider == "deeprouterai"
+            authorization_header = api_key if use_raw_authorization else f"Bearer {api_key}"
             headers = {
                 "Authorization": authorization_header,
                 "Content-Type": "application/json",
