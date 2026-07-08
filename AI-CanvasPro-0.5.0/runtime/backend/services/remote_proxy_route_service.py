@@ -10,6 +10,11 @@ PUBLIC_UPLOAD_API_URLS = {
     "https://telegra.ph/upload",
 }
 
+TASK_PROXY_PROVIDER_URL_MARKERS = {
+    "agnes": ("apihub.agnes-ai.com",),
+    "deeprouterai": ("deeprouterai.com",),
+}
+
 
 class RemoteProxyRouteService:
     def __init__(
@@ -106,32 +111,55 @@ class RemoteProxyRouteService:
     @staticmethod
     def _infer_provider_from_proxy_url(api_url):
         endpoint = str(api_url or "").strip().lower()
-        if "apihub.agnes-ai.com" in endpoint:
-            return "agnes"
+        for provider, markers in TASK_PROXY_PROVIDER_URL_MARKERS.items():
+            if any(marker in endpoint for marker in markers):
+                return provider
         return ""
 
-    def _resolve_task_proxy_credentials(self, api_url, api_key):
+    @staticmethod
+    def _normalize_provider_id(provider):
+        return str(provider or "").strip().lower()
+
+    def _infer_provider_from_configured_base_url(self, api_url):
+        normalized_url = str(api_url or "").strip().lower().rstrip("/")
+        if not normalized_url:
+            return ""
+        for provider in TASK_PROXY_PROVIDER_URL_MARKERS.keys():
+            provider_cfg = self._get_provider_config(provider)
+            provider_base_url = str(provider_cfg.get("apiUrl") or "").strip().lower().rstrip("/")
+            if provider_base_url and (
+                normalized_url == provider_base_url
+                or normalized_url.startswith(f"{provider_base_url}/")
+            ):
+                return provider
+        return ""
+
+    def _resolve_task_proxy_credentials(self, api_url, api_key, provider_hint=""):
         resolved_url = str(api_url or "").strip().rstrip(",")
         resolved_key = str(api_key or "").strip().rstrip(",")
-        provider = self._infer_provider_from_proxy_url(resolved_url)
-        agnes_cfg = self._get_provider_config("agnes") if not provider else {}
-        agnes_base_url = str(agnes_cfg.get("apiUrl") or "").strip().rstrip("/")
-        if not provider and agnes_base_url:
-            normalized_url = resolved_url.lower().rstrip("/")
-            normalized_base = agnes_base_url.lower().rstrip("/")
-            if normalized_url == normalized_base or normalized_url.startswith(f"{normalized_base}/"):
-                provider = "agnes"
+        provider = (
+            self._normalize_provider_id(provider_hint)
+            or self._infer_provider_from_proxy_url(resolved_url)
+            or self._infer_provider_from_configured_base_url(resolved_url)
+        )
         if provider and not resolved_key:
-            provider_cfg = agnes_cfg if provider == "agnes" and agnes_cfg else self._get_provider_config(provider)
+            provider_cfg = self._get_provider_config(provider)
             resolved_key = provider_cfg.get("apiKey", "")
         return resolved_url, resolved_key, provider
 
-    def _missing_task_proxy_credentials_message(self, api_url):
-        provider = self._infer_provider_from_proxy_url(api_url) or "unknown"
+    def _missing_task_proxy_credentials_message(self, api_url, provider_hint=""):
+        provider = (
+            self._normalize_provider_id(provider_hint)
+            or self._infer_provider_from_proxy_url(api_url)
+            or self._infer_provider_from_configured_base_url(api_url)
+            or "unknown"
+        )
+        provider_cfg = self._get_provider_config(provider) if provider != "unknown" else {}
         agnes_cfg = self._get_provider_config("agnes")
         return (
             "Missing apiUrl or apiKey"
-            f" (provider={provider}, hasAgnesKey={bool(agnes_cfg.get('apiKey'))})"
+            f" (provider={provider}, hasProviderKey={bool(provider_cfg.get('apiKey'))}, "
+            f"hasAgnesKey={bool(agnes_cfg.get('apiKey'))})"
         )
 
     @staticmethod
@@ -189,10 +217,11 @@ class RemoteProxyRouteService:
     def _handle_task_proxy(self, handler):
         query = self._parse_query(handler.path, max_num_fields=10)
         api_url = query.get("apiUrl", [""])[0].strip() if "apiUrl" in query else ""
+        provider_hint = query.get("provider", [""])[0].strip() if "provider" in query else ""
         api_key = self._extract_proxy_api_key(handler, query)
-        api_url, api_key, _provider = self._resolve_task_proxy_credentials(api_url, api_key)
+        api_url, api_key, _provider = self._resolve_task_proxy_credentials(api_url, api_key, provider_hint)
         if not api_url or not api_key:
-            return self._json_err(400, self._missing_task_proxy_credentials_message(api_url))
+            return self._json_err(400, self._missing_task_proxy_credentials_message(api_url, provider_hint))
 
         headers = {
             "Authorization": f"Bearer {api_key}",
