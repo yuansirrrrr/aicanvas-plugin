@@ -122,6 +122,7 @@ test('Agnes image generation treats task-like data url as async task id', async 
 
     assert.equal(submitCount, 1);
     assert.equal(submittedBody.model, 'agnes-image-2.1-flash');
+    assert.equal(submittedBody.prompt, 'turn the reference into a poster');
     assert.equal(seenTaskUrls.length, 1);
     assert.equal(result.localPath, 'output/agnes-img2img-final.png');
   } finally {
@@ -171,6 +172,7 @@ test('Agnes image generation sends provider model token without provider prefix'
     });
 
     assert.equal(submittedBody.model, 'agnes-image-2.0-flash');
+    assert.equal(submittedBody.prompt, 'a clean product render');
     assert.equal(result.localPath, 'output/agnes-text-final.png');
   } finally {
     globalThis.fetch = originalFetch;
