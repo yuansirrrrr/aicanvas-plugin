@@ -2453,6 +2453,7 @@ MEDIA_FILE_ROUTE_SERVICE = MediaFileRouteService(
     image_derivative_display_quality=IMAGE_DERIVATIVE_DISPLAY_QUALITY,
     image_derivative_thumb_quality=IMAGE_DERIVATIVE_THUMB_QUALITY,
     image_derivative_root_dirname=IMAGE_DERIVATIVE_ROOT_DIRNAME,
+    provider_config_getter=lambda provider: _get_provider_config(provider),
 )
 
 

@@ -15,6 +15,10 @@ import urllib.request
 GRID_TILE_MAX_AXIS = 10
 GRID_TILE_MAX_COUNT = 100
 
+DOWNLOAD_AUTH_PROVIDER_URL_MARKERS = {
+    "deeprouterai": ("deeprouterai.com",),
+}
+
 IMAGE_EXTENSIONS = frozenset((".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".svg", ".avif"))
 VIDEO_EXTENSIONS = frozenset((".mp4", ".webm", ".mov", ".m4v", ".avi", ".mkv"))
 AUDIO_EXTENSIONS = frozenset((".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac", ".webm"))
@@ -42,6 +46,7 @@ class MediaFileRouteService:
         image_derivative_display_quality=78,
         image_derivative_thumb_quality=70,
         image_derivative_root_dirname="_derived",
+        provider_config_getter=None,
     ):
         self.directory = os.path.abspath(directory)
         self._get_uploads_dir = uploads_dir_getter
@@ -59,6 +64,7 @@ class MediaFileRouteService:
         self.image_derivative_display_quality = int(image_derivative_display_quality)
         self.image_derivative_thumb_quality = int(image_derivative_thumb_quality)
         self.image_derivative_root_dirname = str(image_derivative_root_dirname or "_derived")
+        self._provider_config_getter = provider_config_getter
         self._save_output_from_url_lock = threading.Lock()
         self._save_output_from_url_inflight = {}
 
@@ -726,6 +732,66 @@ class MediaFileRouteService:
         return None
 
     @staticmethod
+    def _normalize_provider_id(provider):
+        return str(provider or "").strip().lower()
+
+    def _get_provider_config(self, provider):
+        provider_id = self._normalize_provider_id(provider)
+        if not provider_id:
+            return {"apiUrl": "", "apiKey": ""}
+        if callable(self._provider_config_getter):
+            try:
+                config = self._provider_config_getter(provider_id)
+                if isinstance(config, dict):
+                    return {
+                        "apiUrl": str(config.get("apiUrl") or "").strip().rstrip("/"),
+                        "apiKey": str(config.get("apiKey") or "").strip(),
+                    }
+            except Exception:
+                pass
+        return {"apiUrl": "", "apiKey": ""}
+
+    def _infer_download_auth_provider(self, url, provider_hint=""):
+        provider = self._normalize_provider_id(provider_hint)
+        if provider:
+            return provider
+        endpoint = str(url or "").strip().lower()
+        for provider_id, markers in DOWNLOAD_AUTH_PROVIDER_URL_MARKERS.items():
+            if any(marker in endpoint for marker in markers):
+                return provider_id
+        for provider_id in DOWNLOAD_AUTH_PROVIDER_URL_MARKERS.keys():
+            provider_cfg = self._get_provider_config(provider_id)
+            provider_base_url = str(provider_cfg.get("apiUrl") or "").strip().lower().rstrip("/")
+            if provider_base_url and (
+                endpoint.rstrip("/") == provider_base_url
+                or endpoint.startswith(f"{provider_base_url}/")
+            ):
+                return provider_id
+        return ""
+
+    def _resolve_download_authorization_header(self, data, url):
+        explicit_auth = str(
+            data.get("authorization")
+            or data.get("Authorization")
+            or data.get("authHeader")
+            or ""
+        ).strip()
+        if explicit_auth:
+            return explicit_auth
+
+        provider = self._infer_download_auth_provider(url, data.get("provider") or data.get("providerId"))
+        if not provider:
+            return ""
+        api_key = str(data.get("apiKey") or "").strip()
+        if not api_key:
+            api_key = self._get_provider_config(provider).get("apiKey", "")
+        if not api_key:
+            return ""
+        if api_key.lower().startswith("bearer "):
+            return api_key
+        return f"Bearer {api_key}"
+
+    @staticmethod
     def _quote_download_url_for_request(url):
         parts = urllib.parse.urlsplit(str(url or ""))
         hostname = parts.hostname or ""
@@ -804,6 +870,9 @@ class MediaFileRouteService:
         try:
             request = urllib.request.Request(request_url, method="GET")
             request.add_header("User-Agent", "AI-Canvas/1.0")
+            authorization_header = self._resolve_download_authorization_header(data, url)
+            if authorization_header:
+                request.add_header("Authorization", authorization_header)
             try:
                 with urllib.request.urlopen(request, timeout=120) as resp:
                     content_type = resp.headers.get("Content-Type") or ""
