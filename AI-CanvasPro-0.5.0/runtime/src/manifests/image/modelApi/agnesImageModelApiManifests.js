@@ -61,10 +61,10 @@ const AGNES_IMAGE_TASK_POLLING = Object.freeze({
 
 const AGNES_IMAGE_MODELS = Object.freeze([
   Object.freeze({
-    modelId: 'agnes-image-2.0-flash',
+    modelId: 'agnes/agnes-image-2.0-flash',
     executionId: 'agnes.model-api.image.agnes-image-2-flash.v1',
     displayName: 'Agnes Image 2.0 Flash',
-    model: 'agnes/agnes-image-2.0-flash',
+    model: 'agnes-image-2.0-flash',
     description: 'Agnes AI text-to-image and image-to-image model API',
     inputSlots: AGNES_IMAGE_INPUT_SLOTS,
     bodyMapping: AGNES_IMAGE_BODY_MAPPING,
@@ -74,7 +74,7 @@ const AGNES_IMAGE_MODELS = Object.freeze([
     modelId: 'agnes-image-2.1-flash',
     executionId: 'agnes.model-api.image.agnes-image-2-1-flash.v1',
     displayName: 'Agnes Image 2.1 Flash',
-    model: 'agnes/agnes-image-2.1-flash',
+    model: 'agnes-image-2.1-flash',
     description: 'Agnes AI text-to-image and image-to-image model API',
     inputSlots: AGNES_IMAGE_INPUT_SLOTS,
     bodyMapping: AGNES_IMAGE_BODY_MAPPING,

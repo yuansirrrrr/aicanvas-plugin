@@ -15,7 +15,7 @@ test('Agnes image task resume prefixes default apiUrl for legacy relative pollin
 
   try {
     globalThis.window = { currentProjectId: 'proj-agnes-test', location: { href: 'http://localhost/' } };
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = async (url, options = {}) => {
       const requestUrl = String(url);
       if (requestUrl === '/api/config') {
         return jsonResponse({
@@ -73,10 +73,11 @@ test('Agnes image generation treats task-like data url as async task id', async 
   const originalWindow = globalThis.window;
   const seenTaskUrls = [];
   let submitCount = 0;
+  let submittedBody = null;
 
   try {
     globalThis.window = { currentProjectId: 'proj-agnes-submit-test', location: { href: 'http://localhost/' } };
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = async (url, options = {}) => {
       const requestUrl = String(url);
       if (requestUrl === '/api/config') {
         return jsonResponse({
@@ -87,6 +88,7 @@ test('Agnes image generation treats task-like data url as async task id', async 
       }
       if (requestUrl === '/api/v2/proxy/image') {
         submitCount += 1;
+        submittedBody = JSON.parse(options.body || '{}');
         return jsonResponse({
           status: 'processing',
           data: [{ url: 'task_agnes_img2img_1' }],
@@ -119,8 +121,57 @@ test('Agnes image generation treats task-like data url as async task id', async 
     });
 
     assert.equal(submitCount, 1);
+    assert.equal(submittedBody.model, 'agnes-image-2.1-flash');
     assert.equal(seenTaskUrls.length, 1);
     assert.equal(result.localPath, 'output/agnes-img2img-final.png');
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.window = originalWindow;
+  }
+});
+
+test('Agnes image generation sends provider model token without provider prefix', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalWindow = globalThis.window;
+  let submittedBody = null;
+
+  try {
+    globalThis.window = { currentProjectId: 'proj-agnes-model-token-test', location: { href: 'http://localhost/' } };
+    globalThis.fetch = async (url, options = {}) => {
+      const requestUrl = String(url);
+      if (requestUrl === '/api/config') {
+        return jsonResponse({
+          providers: {
+            agnes: { apiUrl: '', apiKey: 'k_agnes' },
+          },
+        });
+      }
+      if (requestUrl === '/api/v2/proxy/image') {
+        submittedBody = JSON.parse(options.body || '{}');
+        return jsonResponse({
+          status: 'succeeded',
+          data: [{ url: 'https://img.example.com/agnes-text-final.png' }],
+        });
+      }
+      if (requestUrl === '/api/v2/save_output_from_url') {
+        return jsonResponse({ path: 'output/agnes-text-final.png' });
+      }
+      throw new Error('unexpected fetch url: ' + requestUrl);
+    };
+
+    const { clearApiConfig } = await import('./configApi.js');
+    const { generateImage } = await import('./aiImageApi.js');
+    clearApiConfig();
+
+    const result = await generateImage({
+      provider: 'agnes',
+      model: 'agnes/agnes-image-2.0-flash',
+      prompt: 'a clean product render',
+      inputUrls: [],
+    });
+
+    assert.equal(submittedBody.model, 'agnes-image-2.0-flash');
+    assert.equal(result.localPath, 'output/agnes-text-final.png');
   } finally {
     globalThis.fetch = originalFetch;
     globalThis.window = originalWindow;
