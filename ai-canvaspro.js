@@ -5,7 +5,7 @@ import path from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
 const PLUGIN_NAME = "ai-canvaspro"
-const PLUGIN_DIR_NAMES = [PLUGIN_NAME, "ai-canvaspro-plugin"]
+const PLUGIN_DIR_NAMES = [PLUGIN_NAME, "ai-canvaspro-plugin", "AI-CanvasPro-0.5.0"]
 const pluginDir = path.dirname(fileURLToPath(import.meta.url))
 const DEFAULT_HOST = "127.0.0.1"
 const DEFAULT_PORT = 8777
@@ -21,14 +21,33 @@ function readPositiveIntEnv(name, fallback) {
 
 function getOpenCodeHome() {
   if (process.env.OPENCODE_HOME) return path.resolve(process.env.OPENCODE_HOME)
+  if (process.env.OPENCODE_CONFIG_HOME) return path.resolve(process.env.OPENCODE_CONFIG_HOME)
   const home = process.env.USERPROFILE || process.env.HOME || ""
   return home ? path.join(home, ".config", "opencode") : ""
 }
 
+function getExplicitPluginDirs() {
+  const dirs = []
+  const pluginsDir = process.env.AICANVASPRO_PLUGINS_DIR || process.env.OPENCODE_PLUGINS_DIR || ""
+  if (pluginsDir) dirs.push(...PLUGIN_DIR_NAMES.map((name) => path.join(path.resolve(pluginsDir), name)))
+
+  const explicitPlugin = process.env.AICANVASPRO_PLUGIN_PATH || process.env.AICANVASPRO_PLUGIN_FILE || ""
+  if (explicitPlugin) {
+    const resolved = path.resolve(explicitPlugin)
+    dirs.push(path.basename(resolved).toLowerCase() === "ai-canvaspro.js" ? path.dirname(resolved) : resolved)
+  }
+
+  const explicitDir = process.env.AICANVASPRO_PLUGIN_DIR || ""
+  if (explicitDir) dirs.push(path.resolve(explicitDir))
+  return dirs
+}
+
 function getOpenCodePluginDirs() {
   const opencodeHome = getOpenCodeHome()
-  if (!opencodeHome) return []
-  return PLUGIN_DIR_NAMES.map((name) => path.join(opencodeHome, "plugins", name))
+  const configuredDirs = opencodeHome
+    ? PLUGIN_DIR_NAMES.map((name) => path.join(opencodeHome, "plugins", name))
+    : []
+  return [...new Set([...getExplicitPluginDirs(), ...configuredDirs])]
 }
 
 function findOpenCodePluginRuntimeRoots() {
@@ -59,9 +78,10 @@ function hasRuntimeServer(runtimeRoot) {
 
 function getDefaultRuntimeRoot() {
   const candidates = [
+    process.env.AICANVASPRO_ROOT || "",
     path.join(pluginDir, "runtime"),
     ...findOpenCodePluginRuntimeRoots(),
-  ]
+  ].filter(Boolean)
 
   for (const candidate of candidates) {
     if (hasRuntimeServer(candidate)) return candidate
