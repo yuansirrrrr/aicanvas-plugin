@@ -56,7 +56,7 @@ const AGNES_IMAGE_RESPONSE_MAPPING = Object.freeze({
 const AGNES_IMAGE_TASK_POLLING = Object.freeze({
   mode: 'task-proxy',
   method: 'GET',
-  urlTemplate: '{baseUrl}/v1/images/generations/{taskId}',
+  urlTemplate: 'https://apihub.agnes-ai.com/v1/images/generations/{taskId}',
   headersMode: 'raw',
 });
 

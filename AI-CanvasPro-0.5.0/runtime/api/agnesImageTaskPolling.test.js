@@ -8,7 +8,7 @@ function jsonResponse(body, status = 200) {
   });
 }
 
-test('Agnes image task resume prefixes default apiUrl for legacy relative polling template', async () => {
+test('Agnes image task resume uses absolute task polling URL with relative provider apiUrl', async () => {
   const originalFetch = globalThis.fetch;
   const originalWindow = globalThis.window;
   const seenTaskUrls = [];
@@ -20,7 +20,7 @@ test('Agnes image task resume prefixes default apiUrl for legacy relative pollin
       if (requestUrl === '/api/config') {
         return jsonResponse({
           providers: {
-            agnes: { apiUrl: '', apiKey: 'k_agnes' },
+            agnes: { apiUrl: '/v1', apiKey: 'k_agnes' },
           },
         });
       }
@@ -82,7 +82,7 @@ test('Agnes image generation treats task-like data url as async task id', async 
       if (requestUrl === '/api/config') {
         return jsonResponse({
           providers: {
-            agnes: { apiUrl: '', apiKey: 'k_agnes' },
+            agnes: { apiUrl: '/v1', apiKey: 'k_agnes' },
           },
         });
       }
