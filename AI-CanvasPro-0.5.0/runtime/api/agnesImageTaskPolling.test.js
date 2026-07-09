@@ -179,3 +179,56 @@ test('Agnes image generation sends provider model token without provider prefix'
     globalThis.window = originalWindow;
   }
 });
+
+test('Agnes image generation does not poll final image url as task id', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalWindow = globalThis.window;
+  let pollCount = 0;
+
+  try {
+    globalThis.window = { currentProjectId: 'proj-agnes-final-url-test', location: { href: 'http://localhost/' } };
+    globalThis.fetch = async (url, options = {}) => {
+      const requestUrl = String(url);
+      if (requestUrl === '/api/config') {
+        return jsonResponse({
+          providers: {
+            agnes: { apiUrl: '', apiKey: 'k_agnes' },
+          },
+        });
+      }
+      if (requestUrl === '/api/v2/proxy/image') {
+        const submittedBody = JSON.parse(options.body || '{}');
+        assert.equal(submittedBody.model, 'agnes-image-2.0-flash');
+        assert.equal(submittedBody.prompt, 'a direct final url response');
+        return jsonResponse({
+          data: [{ url: 'https://platform-outputs.agnes-ai.space/images/t2i/final.png' }],
+        });
+      }
+      if (requestUrl.startsWith('/api/v2/proxy/task?')) {
+        pollCount += 1;
+        throw new Error('should not poll final image url: ' + requestUrl);
+      }
+      if (requestUrl === '/api/v2/save_output_from_url') {
+        return jsonResponse({ path: 'output/agnes-final-url.png' });
+      }
+      throw new Error('unexpected fetch url: ' + requestUrl);
+    };
+
+    const { clearApiConfig } = await import('./configApi.js');
+    const { generateImage } = await import('./aiImageApi.js');
+    clearApiConfig();
+
+    const result = await generateImage({
+      provider: 'agnes',
+      model: 'agnes/agnes-image-2.0-flash',
+      prompt: 'a direct final url response',
+      inputUrls: [],
+    });
+
+    assert.equal(pollCount, 0);
+    assert.equal(result.localPath, 'output/agnes-final-url.png');
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.window = originalWindow;
+  }
+});

@@ -43,6 +43,7 @@ function findOpenCodePluginRuntimeRoots() {
         const root = path.join(pluginsRoot, entry.name)
         if (fs.existsSync(path.join(root, "ai-canvaspro.js")) || hasRuntimeServer(path.join(root, "runtime"))) {
           runtimeRoots.push(path.join(root, "runtime"))
+          runtimeRoots.push(path.join(root, "AI-CanvasPro-0.5.0", "runtime"))
         }
       }
     } catch {
@@ -108,8 +109,12 @@ function resolveRuntimeRoot(value) {
     ? path.resolve(value.trim())
     : getDefaultRuntimeRoot()
   const nestedRuntime = path.join(candidate, "runtime")
+  const packagedNestedRuntime = path.join(path.dirname(candidate), "AI-CanvasPro-0.5.0", "runtime")
   if (!hasRuntimeServer(candidate) && hasRuntimeServer(nestedRuntime)) {
     return nestedRuntime
+  }
+  if (!hasRuntimeServer(candidate) && hasRuntimeServer(packagedNestedRuntime)) {
+    return packagedNestedRuntime
   }
   return candidate
 }
