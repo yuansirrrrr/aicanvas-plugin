@@ -14,6 +14,7 @@ const AGNES_IMAGE_INPUT_SLOTS = Object.freeze({
 const AGNES_IMAGE_BODY_MAPPING = Object.freeze([
   Object.freeze({ path: 'model', from: 'model' }),
   Object.freeze({ path: 'prompt', from: 'prompt' }),
+  Object.freeze({ path: 'extra_body.prompt', from: 'prompt', omitWhenEmpty: true }),
   Object.freeze({
     path: 'size',
     from: 'param',

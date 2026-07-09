@@ -86,6 +86,17 @@ test('Agnes image generation treats task-like data url as async task id', async 
           },
         });
       }
+      if (requestUrl === 'https://uploaded.example/ref.png') {
+        return new Response(new Uint8Array([137, 80, 78, 71]), {
+          headers: { 'Content-Type': 'image/png' },
+        });
+      }
+      if (requestUrl.startsWith('/api/v2/proxy/upload')) {
+        return jsonResponse({
+          url: 'https://agnes-upload.example/ref.png',
+          data: { url: 'https://agnes-upload.example/ref.png' },
+        });
+      }
       if (requestUrl === '/api/v2/proxy/image') {
         submitCount += 1;
         submittedBody = JSON.parse(options.body || '{}');
@@ -117,12 +128,14 @@ test('Agnes image generation treats task-like data url as async task id', async 
       provider: 'agnes',
       model: 'agnes/agnes-image-2.1-flash',
       prompt: 'turn the reference into a poster',
-      inputUrls: [],
+      inputUrls: ['https://uploaded.example/ref.png'],
     });
 
     assert.equal(submitCount, 1);
     assert.equal(submittedBody.model, 'agnes-image-2.1-flash');
     assert.equal(submittedBody.prompt, 'turn the reference into a poster');
+    assert.equal(submittedBody.extra_body?.prompt, 'turn the reference into a poster');
+    assert.deepEqual(submittedBody.extra_body?.image, ['https://agnes-upload.example/ref.png']);
     assert.equal(seenTaskUrls.length, 1);
     assert.equal(result.localPath, 'output/agnes-img2img-final.png');
   } finally {
