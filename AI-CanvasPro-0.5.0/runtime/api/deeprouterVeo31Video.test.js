@@ -64,13 +64,15 @@ test("buildGenerateVideoRequest should pass DeepRouterAI Veo 3.1 reference image
   }
 });
 
-test("buildGenerateVideoRequest should reject local DeepRouterAI reference videos instead of uploading to RunningHub", async () => {
+test("buildGenerateVideoRequest should upload local DeepRouterAI reference videos to a public URL", async () => {
   clearApiConfig();
   const originalFetch = globalThis.fetch;
+  const fetchCalls = [];
 
   try {
-    globalThis.fetch = async (url) => {
+    globalThis.fetch = async (url, options = {}) => {
       const href = String(url);
+      fetchCalls.push(href);
       if (href === "/api/config") {
         return makeJsonResponse({
           providers: {
@@ -81,19 +83,33 @@ test("buildGenerateVideoRequest should reject local DeepRouterAI reference video
           },
         });
       }
+      if (href === "/local/ref.mp4") {
+        return new Response(new Blob(["video-bytes"], { type: "video/mp4" }), {
+          status: 200,
+          headers: { "content-type": "video/mp4" },
+        });
+      }
+      if (href.startsWith("/api/v2/proxy/upload?apiUrl=")) {
+        assert.equal(options.method, "POST");
+        return makeJsonResponse({
+          files: [{ url: "https://uguu.example/ref.mp4" }],
+        });
+      }
       throw new Error(`unexpected fetch url: ${href}`);
     };
 
-    await assert.rejects(
-      () =>
-        buildGenerateVideoRequest({
-          provider: "deeprouterai",
-          model: "deeprouterai/veo-3.1-generate-preview",
-          prompt: "extend the reference video",
-          videos: ["/local/ref.mp4"],
-        }),
-      /DeepRouterAI reference video requires a public URL/,
-    );
+    const request = await buildGenerateVideoRequest({
+      provider: "deeprouterai",
+      model: "deeprouterai/veo-3.1-generate-preview",
+      prompt: "extend the reference video",
+      videos: ["/local/ref.mp4"],
+    });
+
+    assert.deepEqual(request.body.video_urls, ["https://uguu.example/ref.mp4"]);
+    assert.deepEqual(request.body.metadata.video_urls, ["https://uguu.example/ref.mp4"]);
+    assert.ok(fetchCalls.includes("/local/ref.mp4"));
+    assert.ok(fetchCalls.some((href) => href.startsWith("/api/v2/proxy/upload?apiUrl=")));
+    assert.ok(!fetchCalls.some((href) => href.includes("runninghub.cn/openapi/v2/media/upload")));
   } finally {
     globalThis.fetch = originalFetch;
   }
