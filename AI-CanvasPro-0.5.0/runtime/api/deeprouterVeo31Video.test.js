@@ -125,6 +125,46 @@ test("buildGenerateVideoRequest should accept canvas image/video input aliases f
   }
 });
 
+test("buildGenerateVideoRequest should map Veo fixed-slot reference media for DeepRouterAI Veo 3.1", async () => {
+  clearApiConfig();
+  const originalFetch = globalThis.fetch;
+
+  try {
+    globalThis.fetch = async (url) => {
+      const href = String(url);
+      if (href === "/api/config") {
+        return makeJsonResponse({
+          providers: {
+            deeprouterai: {
+              apiUrl: "https://www.deeprouterai.com",
+              apiKey: "k_deeprouter",
+            },
+          },
+        });
+      }
+      throw new Error(`unexpected fetch url: ${href}`);
+    };
+
+    const request = await buildGenerateVideoRequest({
+      provider: "deeprouterai",
+      model: "deeprouterai/veo-3.1-generate-preview",
+      prompt: "use the fixed-slot reference media",
+      inputUrlsBySlot: {
+        referenceImage: "https://cdn.example.com/veo-reference.png",
+        originalVideo: "https://cdn.example.com/veo-source.mp4",
+      },
+    });
+
+    assert.equal(request.body.image, "https://cdn.example.com/veo-reference.png");
+    assert.deepEqual(request.body.image_urls, ["https://cdn.example.com/veo-reference.png"]);
+    assert.deepEqual(request.body.video_urls, ["https://cdn.example.com/veo-source.mp4"]);
+    assert.deepEqual(request.body.metadata.image_urls, ["https://cdn.example.com/veo-reference.png"]);
+    assert.deepEqual(request.body.metadata.video_urls, ["https://cdn.example.com/veo-source.mp4"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("buildGenerateVideoRequest should upload local DeepRouterAI reference images to a public URL", async () => {
   clearApiConfig();
   const originalFetch = globalThis.fetch;
