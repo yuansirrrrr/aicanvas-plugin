@@ -1,1 +1,63 @@
-function a34_0xcf9b(_0xe54fb3,_0x27d134){const _0x2cdfa3=a34_0x2cdf();return a34_0xcf9b=function(_0xcf9b7,_0x54462d){_0xcf9b7=_0xcf9b7-0xce;let _0x5c9d7c=_0x2cdfa3[_0xcf9b7];return _0x5c9d7c;},a34_0xcf9b(_0xe54fb3,_0x27d134);}(function(_0x465b0c,_0x2a1c72){const _0x23a6ff=a34_0xcf9b,_0x3b60e8=_0x465b0c();while(!![]){try{const _0x433d84=parseInt(_0x23a6ff(0xd5))/0x1+parseInt(_0x23a6ff(0xd1))/0x2*(-parseInt(_0x23a6ff(0xde))/0x3)+-parseInt(_0x23a6ff(0xdb))/0x4*(parseInt(_0x23a6ff(0xdd))/0x5)+-parseInt(_0x23a6ff(0xd2))/0x6*(parseInt(_0x23a6ff(0xd9))/0x7)+-parseInt(_0x23a6ff(0xd3))/0x8*(-parseInt(_0x23a6ff(0xce))/0x9)+parseInt(_0x23a6ff(0xd4))/0xa+parseInt(_0x23a6ff(0xd6))/0xb*(parseInt(_0x23a6ff(0xcf))/0xc);if(_0x433d84===_0x2a1c72)break;else _0x3b60e8['push'](_0x3b60e8['shift']());}catch(_0x8230a1){_0x3b60e8['push'](_0x3b60e8['shift']());}}}(a34_0x2cdf,0xba1d0));import a34_0x3c4247 from'../src/core/stores/appStore.js';function a34_0x2cdf(){const _0x1d42fb=['setServerConnection','onerror','2912RsigPY','close','16364psoDdC','/api/v2/heartbeat_stream','1280mxeICg','573261MtwLyL','198HnZiIZ','12qqebHo','onopen','6hpCGfU','18726AKkiIp','422224zVrspx','12211870VowvZa','1151533MhmfaL','1621147keTcjw'];a34_0x2cdf=function(){return _0x1d42fb;};return a34_0x2cdf();}import{buildApiUrl}from'./apiBase.js';let evtSource=null,reconnectTimer=null,started=![];function connect(){const _0x320794=a34_0xcf9b;if(evtSource)evtSource[_0x320794(0xda)]();evtSource=new EventSource(buildApiUrl(_0x320794(0xdc))),evtSource[_0x320794(0xd0)]=()=>{const _0x29796f=_0x320794;a34_0x3c4247[_0x29796f(0xd7)](!![]),reconnectTimer&&(clearTimeout(reconnectTimer),reconnectTimer=null);},evtSource[_0x320794(0xd8)]=()=>{const _0x540ebe=_0x320794;a34_0x3c4247[_0x540ebe(0xd7)](![]),evtSource[_0x540ebe(0xda)](),!reconnectTimer&&(reconnectTimer=setTimeout(()=>{reconnectTimer=null,connect();},0x7d0));};}export function startServerConnectionMonitor(){if(started)return;started=!![],setTimeout(connect,0x3e8);}
+import appStore from '../src/core/stores/appStore.js';
+import { buildApiUrl } from './apiBase.js';
+
+let evtSource = null;
+let reconnectTimer = null;
+let started = false;
+
+export function shouldMonitorLocalServerConnection(locationLike = globalThis?.location) {
+  try {
+    const protocol = String(locationLike?.protocol || '').toLowerCase();
+    const hostname = String(locationLike?.hostname || '').toLowerCase();
+
+    if (protocol === 'file:') return true;
+    if (!hostname) return true;
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]') {
+      return true;
+    }
+    if (/^127\./.test(hostname)) return true;
+
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+function connect() {
+  if (typeof EventSource !== 'function') {
+    appStore.setServerConnection(true);
+    return;
+  }
+
+  if (evtSource) evtSource.close();
+  evtSource = new EventSource(buildApiUrl('/api/v2/heartbeat_stream'));
+  evtSource.onopen = () => {
+    appStore.setServerConnection(true);
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+  };
+  evtSource.onerror = () => {
+    appStore.setServerConnection(false);
+    evtSource.close();
+    if (!reconnectTimer) {
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, 2000);
+    }
+  };
+}
+
+export function startServerConnectionMonitor() {
+  if (started) return;
+  started = true;
+
+  if (!shouldMonitorLocalServerConnection()) {
+    appStore.setServerConnection(true);
+    return;
+  }
+
+  setTimeout(connect, 1000);
+}
