@@ -1970,6 +1970,7 @@ OPENCODE_CANVAS_GENERATION_TIMEOUT_SECONDS = _get_int_env(
     OPENCODE_CANVAS_VIDEO_GENERATION_TIMEOUT_SECONDS,
     1,
 )
+OPENCODE_CANVAS_RUNTIME_TTL_SECONDS = _get_int_env("AICANVAS_RUNTIME_TTL_SECONDS", 120, 15)
 _OPENCODE_CANVAS_CONDITION = threading.Condition()
 _OPENCODE_CANVAS_STATE = {
     "runtimeId": "",
@@ -2058,12 +2059,14 @@ def _opencode_canvas_merge_agent_skills(live_skills):
 def _opencode_canvas_public_state():
     with _OPENCODE_CANVAS_CONDITION:
         last_seen = float(_OPENCODE_CANVAS_STATE.get("lastSeen") or 0)
+        runtime_age = time.time() - last_seen if last_seen else None
         skills = _opencode_canvas_merge_agent_skills(_OPENCODE_CANVAS_STATE.get("skills") or [])
         return {
             "ok": True,
-            "runtimeRegistered": bool(last_seen and time.time() - last_seen < 15),
+            "runtimeRegistered": bool(last_seen and runtime_age < OPENCODE_CANVAS_RUNTIME_TTL_SECONDS),
             "runtimeId": _OPENCODE_CANVAS_STATE.get("runtimeId") or "",
             "lastSeen": int(last_seen * 1000) if last_seen else 0,
+            "runtimeTtlSeconds": OPENCODE_CANVAS_RUNTIME_TTL_SECONDS,
             "pendingJobs": len(_OPENCODE_CANVAS_STATE.get("pending") or []),
             "commandCount": len(_OPENCODE_CANVAS_STATE.get("commands") or []),
             "skillCount": len(skills),
@@ -2181,10 +2184,10 @@ def _opencode_canvas_submit_command(command_id, args=None, timeout_seconds=OPENC
     deadline = time.time() + max(1, int(timeout_seconds or OPENCODE_CANVAS_COMMAND_TIMEOUT_SECONDS))
     with _OPENCODE_CANVAS_CONDITION:
         last_seen = float(_OPENCODE_CANVAS_STATE.get("lastSeen") or 0)
-        if not last_seen or time.time() - last_seen >= 15:
+        if not last_seen or time.time() - last_seen >= OPENCODE_CANVAS_RUNTIME_TTL_SECONDS:
             return 409, {
                 "ok": False,
-                "error": "AI-CanvasPro browser runtime is not registered. Run /aicanvas and keep the canvas page open.",
+                "error": "AI-CanvasPro browser runtime is not registered. Keep the canvas page open and wait for it to reconnect.",
             }
         _OPENCODE_CANVAS_STATE["pending"].append({
             "jobId": job_id,

@@ -2,10 +2,29 @@ const BRIDGE_BASE = "/api/v2/opencode-canvas";
 const REGISTER_INTERVAL_MS = 2500;
 const POLL_INTERVAL_MS = 600;
 const REQUEST_TIMEOUT_MS = 10000;
+const RUNTIME_ID_STORAGE_KEY = "aicanvas.opencode.runtimeId";
 
 function createRuntimeId() {
   const random = Math.random().toString(36).slice(2);
   return `browser-${Date.now().toString(36)}-${random}`;
+}
+
+function getStableRuntimeId() {
+  const existingRuntimeId = String(window.__openCodeCanvasBridge?.runtimeId || "").trim();
+  if (existingRuntimeId) return existingRuntimeId;
+
+  try {
+    const storedRuntimeId = String(window.sessionStorage?.getItem(RUNTIME_ID_STORAGE_KEY) || "").trim();
+    if (storedRuntimeId) return storedRuntimeId;
+  } catch {
+  }
+
+  const runtimeId = createRuntimeId();
+  try {
+    window.sessionStorage?.setItem(RUNTIME_ID_STORAGE_KEY, runtimeId);
+  } catch {
+  }
+  return runtimeId;
 }
 
 function cloneJson(value, fallback = null) {
@@ -102,7 +121,7 @@ export function installOpenCodeCanvasBridge(options = {}) {
     window.__openCodeCanvasBridge.stop();
   }
 
-  const runtimeId = createRuntimeId();
+  const runtimeId = getStableRuntimeId();
   let stopped = false;
   let registering = false;
   let polling = false;
@@ -144,6 +163,16 @@ export function installOpenCodeCanvasBridge(options = {}) {
 
   const registerTimer = window.setInterval(register, REGISTER_INTERVAL_MS);
   const pollTimer = window.setInterval(poll, POLL_INTERVAL_MS);
+  const refresh = () => {
+    void register();
+    void poll();
+  };
+  const onVisibilityChange = () => {
+    if (document.visibilityState !== "hidden") refresh();
+  };
+  window.addEventListener("focus", refresh);
+  window.addEventListener("pageshow", refresh);
+  document.addEventListener("visibilitychange", onVisibilityChange);
   void register();
   void poll();
 
@@ -155,6 +184,9 @@ export function installOpenCodeCanvasBridge(options = {}) {
       stopped = true;
       window.clearInterval(registerTimer);
       window.clearInterval(pollTimer);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("pageshow", refresh);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     },
   };
   window.__openCodeCanvasBridge = api;
