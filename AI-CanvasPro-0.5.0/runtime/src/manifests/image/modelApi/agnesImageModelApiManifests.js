@@ -30,18 +30,6 @@ const AGNES_IMAGE_BODY_MAPPING = Object.freeze([
 ]);
 
 const AGNES_IMAGE_RESPONSE_MAPPING = Object.freeze({
-  // Agnes image-to-image can submit an async task as data[0].url = "task_...".
-  // Treat those task-like values as task ids so the normal task polling flow runs
-  // instead of trying to save "task_..." as an image URL.
-  taskIdPath: Object.freeze([
-    'task_id',
-    'taskId',
-    'data.task_id',
-    'data.taskId',
-    'data[].url',
-    'data[].task_id',
-    'data[].taskId',
-  ]),
   statusPath: 'status',
   errorPath: Object.freeze(['error.message', 'message', 'error']),
   resultPaths: Object.freeze([
@@ -51,13 +39,6 @@ const AGNES_IMAGE_RESPONSE_MAPPING = Object.freeze({
     'results[].imageUrl',
     'url',
   ]),
-});
-
-const AGNES_IMAGE_TASK_POLLING = Object.freeze({
-  mode: 'task-proxy',
-  method: 'GET',
-  urlTemplate: 'https://apihub.agnes-ai.com/v1/images/generations/{taskId}',
-  headersMode: 'raw',
 });
 
 const AGNES_IMAGE_MODELS = Object.freeze([
@@ -117,7 +98,6 @@ export const agnesImageModelApiExecutionManifests = Object.freeze(
     endpointMode: 'image-generation',
     bodyMapping: modelDef.bodyMapping,
     responseMapping: AGNES_IMAGE_RESPONSE_MAPPING,
-    taskPolling: AGNES_IMAGE_TASK_POLLING,
     extensions: Object.freeze({
       bodyResolver: 'agnesImage',
     }),
