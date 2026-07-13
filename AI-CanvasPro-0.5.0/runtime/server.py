@@ -1980,10 +1980,13 @@ OPENCODE_CANVAS_GENERATION_TIMEOUT_SECONDS = _get_int_env(
     OPENCODE_CANVAS_VIDEO_GENERATION_TIMEOUT_SECONDS,
     1,
 )
-OPENCODE_CANVAS_RUNTIME_TTL_SECONDS = _get_int_env("AICANVAS_RUNTIME_TTL_SECONDS", 120, 15)
 _OPENCODE_CANVAS_CONDITION = threading.Condition()
 _OPENCODE_CANVAS_STATE = {
     "runtimeId": "",
+    # Registration is deliberately explicit.  A browser can be backgrounded
+    # while a long image/video generation is running, so a missed heartbeat
+    # must never turn a working runtime off.
+    "runtimeRegistered": False,
     "lastSeen": 0.0,
     "commands": [],
     "skills": [],
@@ -2069,14 +2072,14 @@ def _opencode_canvas_merge_agent_skills(live_skills):
 def _opencode_canvas_public_state():
     with _OPENCODE_CANVAS_CONDITION:
         last_seen = float(_OPENCODE_CANVAS_STATE.get("lastSeen") or 0)
-        runtime_age = time.time() - last_seen if last_seen else None
         skills = _opencode_canvas_merge_agent_skills(_OPENCODE_CANVAS_STATE.get("skills") or [])
         return {
             "ok": True,
-            "runtimeRegistered": bool(last_seen and runtime_age < OPENCODE_CANVAS_RUNTIME_TTL_SECONDS),
+            "runtimeRegistered": bool(_OPENCODE_CANVAS_STATE.get("runtimeRegistered")),
             "runtimeId": _OPENCODE_CANVAS_STATE.get("runtimeId") or "",
             "lastSeen": int(last_seen * 1000) if last_seen else 0,
-            "runtimeTtlSeconds": OPENCODE_CANVAS_RUNTIME_TTL_SECONDS,
+            "runtimeTtlSeconds": 0,
+            "runtimeExpirationEnabled": False,
             "pendingJobs": len(_OPENCODE_CANVAS_STATE.get("pending") or []),
             "commandCount": len(_OPENCODE_CANVAS_STATE.get("commands") or []),
             "skillCount": len(skills),
@@ -2088,6 +2091,7 @@ def _opencode_canvas_update_runtime(payload):
     with _OPENCODE_CANVAS_CONDITION:
         runtime_id = str(payload.get("runtimeId") or "browser-runtime")
         _OPENCODE_CANVAS_STATE["runtimeId"] = runtime_id
+        _OPENCODE_CANVAS_STATE["runtimeRegistered"] = True
         _OPENCODE_CANVAS_STATE["lastSeen"] = time.time()
         if isinstance(payload.get("commands"), list):
             _OPENCODE_CANVAS_STATE["commands"] = payload.get("commands")
@@ -2097,6 +2101,27 @@ def _opencode_canvas_update_runtime(payload):
             _OPENCODE_CANVAS_STATE["context"] = payload.get("context")
         _OPENCODE_CANVAS_CONDITION.notify_all()
     return _opencode_canvas_public_state()
+
+
+def _opencode_canvas_unregister_runtime(payload):
+    """Explicitly turn the browser runtime off; heartbeats never do this."""
+    payload = payload if isinstance(payload, dict) else {}
+    requested_runtime_id = str(payload.get("runtimeId") or "").strip()
+    with _OPENCODE_CANVAS_CONDITION:
+        registered_runtime_id = str(_OPENCODE_CANVAS_STATE.get("runtimeId") or "")
+        if requested_runtime_id and registered_runtime_id and requested_runtime_id != registered_runtime_id:
+            return 409, {
+                "ok": False,
+                "error": "Runtime id does not match the registered canvas runtime.",
+            }
+        _OPENCODE_CANVAS_STATE["runtimeRegistered"] = False
+        _OPENCODE_CANVAS_STATE["runtimeId"] = ""
+        _OPENCODE_CANVAS_STATE["lastSeen"] = 0.0
+        _OPENCODE_CANVAS_STATE["commands"] = []
+        _OPENCODE_CANVAS_STATE["skills"] = []
+        _OPENCODE_CANVAS_STATE["context"] = {}
+        _OPENCODE_CANVAS_CONDITION.notify_all()
+    return 200, _opencode_canvas_public_state()
 
 
 def _opencode_canvas_runtime_poll(payload):
@@ -2193,11 +2218,10 @@ def _opencode_canvas_submit_command(command_id, args=None, timeout_seconds=OPENC
     job_id = hashlib.sha1(f"{command_id}:{time.time()}:{random.random()}".encode("utf-8")).hexdigest()
     deadline = time.time() + max(1, int(timeout_seconds or OPENCODE_CANVAS_COMMAND_TIMEOUT_SECONDS))
     with _OPENCODE_CANVAS_CONDITION:
-        last_seen = float(_OPENCODE_CANVAS_STATE.get("lastSeen") or 0)
-        if not last_seen or time.time() - last_seen >= OPENCODE_CANVAS_RUNTIME_TTL_SECONDS:
+        if not _OPENCODE_CANVAS_STATE.get("runtimeRegistered"):
             return 409, {
                 "ok": False,
-                "error": "AI-CanvasPro browser runtime is not registered. Keep the canvas page open and wait for it to reconnect.",
+                "error": "AI-CanvasPro browser runtime is not registered. Start or register the canvas runtime first.",
             }
         _OPENCODE_CANVAS_STATE["pending"].append({
             "jobId": job_id,
@@ -2330,6 +2354,10 @@ def _opencode_canvas_handle_post(handler, path):
         return True
     if path == OPENCODE_CANVAS_API_PREFIX + "/runtime/poll":
         _json_ok(handler, _opencode_canvas_runtime_poll(payload))
+        return True
+    if path == OPENCODE_CANVAS_API_PREFIX + "/runtime/unregister":
+        status, response = _opencode_canvas_unregister_runtime(payload)
+        _opencode_canvas_json_response(handler, status, response)
         return True
     if path == OPENCODE_CANVAS_API_PREFIX + "/runtime/result":
         _json_ok(handler, _opencode_canvas_runtime_result(payload))
