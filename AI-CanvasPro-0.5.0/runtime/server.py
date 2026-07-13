@@ -101,6 +101,8 @@ def _build_apimart_presign_url(api_url):
         return "https://apib.ai/api/upload/presign"
 STATIC_VIDEO_CACHE_CONTROL = "public, max-age=86400"
 NO_STORE_CACHE_CONTROL = "no-store, no-cache, must-revalidate, max-age=0"
+STATIC_APP_CACHE_CONTROL = "public, max-age=3600, must-revalidate"
+STATIC_DOCUMENT_CACHE_CONTROL = "no-cache"
 SMART_CLIP_MIN_SEGMENTS = 2
 SMART_CLIP_MAX_SEGMENTS = 25
 SMART_CLIP_DEFAULT_SEGMENTS = 20
@@ -146,10 +148,18 @@ def _is_cacheable_static_video_request(request_path):
 
 
 def _resolve_static_cache_control(request_path):
+    decoded_path = _normalize_request_path(request_path)
     if _is_cacheable_derived_media_request(request_path):
         return DERIVED_MEDIA_CACHE_CONTROL
     if _is_cacheable_static_video_request(request_path):
         return STATIC_VIDEO_CACHE_CONTROL
+    if decoded_path.startswith("/api/"):
+        return NO_STORE_CACHE_CONTROL
+    _, ext = os.path.splitext(decoded_path)
+    if ext.lower() in {".js", ".mjs", ".css", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".woff", ".woff2"}:
+        return STATIC_APP_CACHE_CONTROL
+    if ext.lower() in {".html", ".htm"} or decoded_path.endswith("/"):
+        return STATIC_DOCUMENT_CACHE_CONTROL
     return NO_STORE_CACHE_CONTROL
 
 def _get_int_env(name, default, min_value=None):
@@ -3204,6 +3214,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         size = fs.st_size
         range_header = self.headers.get("Range", "")
         self._range = None
+        etag = f'"{fs.st_mtime_ns:x}-{size:x}"'
+
+        if not range_header and self.headers.get("If-None-Match", "").strip() == etag:
+            f.close()
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.end_headers()
+            return None
 
         if range_header.startswith("bytes="):
             spec = range_header[6:].strip()
@@ -3240,6 +3258,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
             self.send_header("Content-Length", str(end - start + 1))
             self.send_header("Last-Modified", self.date_time_string(fs.st_mtime))
+            self.send_header("ETag", etag)
             self.end_headers()
             f.seek(start)
             return f
@@ -3249,6 +3268,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Accept-Ranges", "bytes")
         self.send_header("Content-Length", str(size))
         self.send_header("Last-Modified", self.date_time_string(fs.st_mtime))
+        self.send_header("ETag", etag)
         self.end_headers()
         return f
 
@@ -3883,10 +3903,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             is_grsai_generate_endpoint = bool(
                 re.search(r"/v1/api/generate(?:$|[/?])", api_url, flags=re.IGNORECASE)
             )
+            proxy_provider = _infer_proxy_provider(data, api_url)
+            # Agnes image generation may emit a task_id before its final image
+            # payload.  It is a synchronous streaming response, so returning
+            # early here discards the generated image and makes the renderer
+            # treat the synthetic `submitted` envelope as an error.
+            is_agnes_image_generation_endpoint = (
+                proxy_provider == "agnes"
+                and bool(re.search(r"/v1/images/generations(?:$|[/?])", api_url, flags=re.IGNORECASE))
+            )
             allow_task_probe_short_circuit = not (
                 is_runninghub_query_endpoint
                 or is_grsai_query_endpoint
                 or is_grsai_generate_endpoint
+                or is_agnes_image_generation_endpoint
             )
             _log_subscription_gate_event(
                 "runninghub_workflow_gate_check",
@@ -3910,7 +3940,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     required_model_id=f"runninghub/{workflow_id}",
                 ):
                     return
-            proxy_provider = _infer_proxy_provider(data, api_url)
             use_raw_authorization = auth_header_mode == "raw" or proxy_provider == "deeprouterai"
             authorization_header = api_key if use_raw_authorization else f"Bearer {api_key}"
             headers = {
