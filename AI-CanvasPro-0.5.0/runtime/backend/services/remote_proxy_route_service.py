@@ -13,6 +13,7 @@ PUBLIC_UPLOAD_API_URLS = {
 TASK_PROXY_PROVIDER_URL_MARKERS = {
     "agnes": ("apihub.agnes-ai.com",),
     "deeprouterai": ("deeprouterai.com",),
+    "runninghub": ("runninghub.cn",),
 }
 
 
@@ -254,6 +255,13 @@ class RemoteProxyRouteService:
         query = self._parse_query(handler.path)
         api_url = query.get("apiUrl", [""])[0].strip().rstrip(",")
         api_key = self._extract_proxy_api_key(handler, query)
+        if api_url and not api_key and not self._is_public_upload_api_url(api_url):
+            provider = (
+                self._infer_provider_from_proxy_url(api_url)
+                or self._infer_provider_from_configured_base_url(api_url)
+            )
+            if provider:
+                api_key = self._get_provider_config(provider).get("apiKey", "")
         if not api_url or (not api_key and not self._is_public_upload_api_url(api_url)):
             return self._json_err(400, "Missing apiUrl or apiKey")
 
