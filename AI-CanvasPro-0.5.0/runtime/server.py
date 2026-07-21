@@ -1446,6 +1446,7 @@ def _get_provider_config(provider):
     defaults = {
         "agnes": "https://apihub.agnes-ai.com",
         "deeprouterai": "https://www.deeprouterai.com",
+        "runninghub": "https://www.runninghub.cn",
     }
     cfg_url = ""
     cfg_key = ""
@@ -1487,6 +1488,12 @@ def _infer_proxy_provider(data, api_url=""):
         or "deeprouterai.com" in endpoint
     ):
         return "deeprouterai"
+    if (
+        model.startswith("runninghub/")
+        or model.startswith("runninghub-model/")
+        or "runninghub.cn" in endpoint
+    ):
+        return "runninghub"
     return ""
 
 
