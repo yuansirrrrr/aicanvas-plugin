@@ -1457,7 +1457,21 @@ def _get_provider_config(provider):
         provider_cfg = providers.get(provider_id, {}) if isinstance(providers, dict) else {}
         if isinstance(provider_cfg, dict):
             cfg_url = str(provider_cfg.get("apiUrl") or "").strip()
-            cfg_key = str(provider_cfg.get("apiKey") or "").strip()
+            # RunningHub keeps workflow and model-API credentials separately.
+            # Seedance 2.0 is a model-API integration, so its configured key is
+            # normally stored as modelApiKey rather than apiKey.
+            if provider_id == "runninghub":
+                cfg_key = str(
+                    provider_cfg.get("modelApiKey")
+                    or provider_cfg.get("apiKey")
+                    or ""
+                ).strip()
+            else:
+                cfg_key = str(
+                    provider_cfg.get("apiKey")
+                    or provider_cfg.get("modelApiKey")
+                    or ""
+                ).strip()
     except Exception:
         pass
     env_prefix = provider_id.upper().replace("-", "_")
